@@ -1,4 +1,4 @@
-name: Deploy to cPanel
+name: Deploy to Ubuntu VPS
 
 on:
   push:
@@ -23,17 +23,58 @@ jobs:
           npm ci
           npm run build
           
-      - name: 🚀 Sync files via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: 🗜️ Zip files for transfer
+        run: |
+          zip -r deploy.zip . -x "**.git**" "**/node_modules/**" "**/.env**"
+          
+      - name: 🚀 Copy zip to VPS via SCP
+        uses: appleboy/scp-action@v0.1.7
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./
-          server-dir: public_html/filotakip/
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/.env*
-            **/*.log
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          source: "deploy.zip"
+          target: "/tmp"
+          
+      - name: 🔧 Unzip, Install & Restart PM2 on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            if ! command -v node &> /dev/null; then
+              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+              sudo apt-get install -y nodejs unzip
+            fi
+            if ! command -v pm2 &> /dev/null; then
+              sudo npm install -g pm2
+            fi
+            
+            mkdir -p /var/www/filotakip
+            cd /var/www/filotakip
+            unzip -o /tmp/deploy.zip
+            rm /tmp/deploy.zip
+            
+            cd server
+            echo "DB_HOST=${{ secrets.DB_HOST }}" > .env
+            echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+            npm install --production
+            
+            cd ../web
+            npm install --production
+            
+            cd /var/www/filotakip
+            pm2 stop all || true
+            pm2 delete all || true
+            
+            pm2 start server/server.js --name "filotakip-backend"
+            cd web
+            pm2 start "npm run start" --name "filotakip-frontend"
+            
+            pm2 save
+            pm2 startup | tail -n 1 | bash
