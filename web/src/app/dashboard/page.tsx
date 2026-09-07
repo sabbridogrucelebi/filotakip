@@ -32,6 +32,9 @@ function KPICard({ title, value, icon: Icon, color }: any) {
 import { ChevronUp, ChevronDown } from 'lucide-react';
 
 export default function DashboardPage() {
+  const [showCards, setShowCards] = useState(true);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [serverStatus, setServerStatus] = useState("%0.0");
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -164,7 +167,7 @@ export default function DashboardPage() {
 
     // Force re-render every 5 seconds so time-based colors (Orange > 25s, Purple > 60s) update without waiting for new packets
     const interval = setInterval(() => {
-      setVehicles(v => [...v]);
+      setVehicles((v: any[]) => [...v]);
     }, 5000);
 
     return () => {
