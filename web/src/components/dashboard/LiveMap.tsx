@@ -11,31 +11,57 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
-// A custom CYBERPUNK neon icon for vehicles with pulsing radar effect
-const createNeonIcon = (speed: number) => {
-  // Color logic based on status
-  let color = '#3b82f6'; // moving (blue)
-  let shadowColor = 'rgba(59,130,246,0.8)';
+// Helper to determine the color of the vehicle marker based on user's specific rules
+const getVehicleStatusColor = (v: any) => {
+  const now = new Date();
+  const lastUpdate = new Date(v.last_update);
+  const timeDiff = (now.getTime() - lastUpdate.getTime()) / 1000; // in seconds
+
+  if (timeDiff > 3600) return { color: '#000000', label: 'Siyah', shadow: 'rgba(0,0,0,0.8)' }; // Black (Offline > 1hr)
+  if (timeDiff > 600) return { color: '#64748b', label: 'Gri', shadow: 'rgba(100,116,139,0.8)' }; // Grey (No signal > 10m)
+
+  if (v.speed > 0) return { color: '#3b82f6', label: 'Mavi', shadow: 'rgba(59,130,246,0.8)' }; // Blue (Moving)
   
-  if (speed === 0) {
-    color = '#f59e0b'; // stopped (orange)
-    shadowColor = 'rgba(245,158,11,0.8)';
+  if (v.speed === 0 && !v.ignition) return { color: '#ef4444', label: 'Kırmızı', shadow: 'rgba(239,68,68,0.8)' }; // Red (Stopped, Engine OFF)
+  
+  if (v.speed === 0 && v.ignition) {
+    if (!v.idle_since) return { color: '#3b82f6', label: 'Mavi', shadow: 'rgba(59,130,246,0.8)' }; // Assume blue if just stopped
+    const idleStart = new Date(v.idle_since);
+    const idleTime = (now.getTime() - idleStart.getTime()) / 1000;
+    
+    if (idleTime > 60) return { color: '#a855f7', label: 'Mor', shadow: 'rgba(168,85,247,0.8)' }; // Purple (Idle > 60s)
+    if (idleTime > 25) return { color: '#f97316', label: 'Turuncu', shadow: 'rgba(249,115,22,0.8)' }; // Orange (Idle > 25s)
+    
+    return { color: '#3b82f6', label: 'Mavi', shadow: 'rgba(59,130,246,0.8)' }; // Still blue if idle < 25s
   }
-  if (speed > 100) {
-    color = '#ef4444'; // speeding (red)
-    shadowColor = 'rgba(239,68,68,0.8)';
-  }
+
+  return { color: '#64748b', label: 'Gri', shadow: 'rgba(100,116,139,0.8)' };
+};
+
+// A custom PREMIUM ARVENTO-STYLE icon for vehicles
+const createPremiumVehicleIcon = (v: any) => {
+  const { color, shadow } = getVehicleStatusColor(v);
+  const plate = v.plate || v.imei || 'Bilinmiyor';
 
   return new L.DivIcon({
     className: 'bg-transparent',
     html: `
-      <div class="relative flex items-center justify-center w-6 h-6">
-        <div class="absolute inset-0 rounded-full animate-ping opacity-75" style="background-color: ${color};"></div>
-        <div class="relative w-3 h-3 rounded-full border border-white z-10" style="background-color: ${color}; box-shadow: 0 0 15px ${shadowColor}, 0 0 30px ${shadowColor};"></div>
+      <div class="relative flex flex-col items-center justify-center -mt-6">
+        <!-- The Circular Marker -->
+        <div class="relative flex items-center justify-center w-6 h-6 z-20">
+          <div class="absolute inset-0 rounded-full animate-pulse opacity-40" style="background-color: ${color}; box-shadow: 0 0 20px ${shadow};"></div>
+          <div class="relative w-4 h-4 rounded-full border-[3px] border-white z-10 shadow-lg" style="background-color: ${color}; box-shadow: 0 2px 5px rgba(0,0,0,0.5);"></div>
+        </div>
+        <!-- Permanent Plate Label Below Marker -->
+        <div class="mt-1 bg-[#111827]/90 backdrop-blur-md border border-white/10 px-2 py-0.5 rounded shadow-[0_4px_10px_rgba(0,0,0,0.5)] z-30 flex flex-col items-center whitespace-nowrap">
+          <span class="text-white font-bold text-[10px] tracking-wider" style="color: ${color === '#000000' ? '#e2e8f0' : color}; text-shadow: 0 0 5px ${shadow};">
+            ${plate}
+          </span>
+        </div>
       </div>
     `,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12]
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
   });
 };
 
@@ -137,12 +163,24 @@ export default function LiveMap({
         {vehicles.map(v => {
           if (!v.lat || !v.lng) return null;
           return (
-            <Marker key={v.id || v.imei} position={[v.lat, v.lng]} icon={createNeonIcon(v.speed)}>
-              <Popup className="premium-popup">
-                <div className="font-bold text-white tracking-widest">{v.plate || v.imei}</div>
-                <div className="text-sm text-slate-400 mt-1">Hız: <span className="text-white font-mono">{v.speed} km/s</span></div>
-                <div className="text-xs mt-2 uppercase font-bold" style={{ color: v.speed > 0 ? '#3b82f6' : '#f59e0b' }}>
-                  {v.status === 'moving' || v.speed > 0 ? 'Hareket Halinde' : 'Rölanti / Duruyor'}
+            <Marker key={v.id || v.imei} position={[v.lat, v.lng]} icon={createPremiumVehicleIcon(v)}>
+              <Popup className="premium-popup !p-0 overflow-hidden rounded-xl border border-white/10 bg-[#0f172a]/95 backdrop-blur-xl">
+                <div className="p-3 w-48">
+                  <div className="font-bold text-white tracking-widest text-sm border-b border-white/10 pb-2 mb-2">{v.plate || v.imei}</div>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <span className="text-slate-400">Hız:</span>
+                    <span className="text-white font-mono">{v.speed} km/s</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <span className="text-slate-400">Durum:</span>
+                    <span className="font-bold uppercase" style={{ color: getVehicleStatusColor(v).color }}>
+                      {getVehicleStatusColor(v).label}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-400">Son Sinyal:</span>
+                    <span className="text-slate-200 font-mono text-[10px]">{new Date(v.last_update).toLocaleTimeString('tr-TR')}</span>
+                  </div>
                 </div>
               </Popup>
             </Marker>

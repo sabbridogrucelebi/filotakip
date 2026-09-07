@@ -13,10 +13,18 @@ const pool = mysql.createPool({
   multipleStatements: true
 });
 
-// Test connection
+// Test connection and migrate schema
 pool.getConnection()
-  .then(connection => {
+  .then(async connection => {
     console.log('MySQL veritabanına başarıyla bağlanıldı.');
+    try {
+      await connection.query("ALTER TABLE devices ADD COLUMN idle_since DATETIME NULL;");
+      console.log('Added idle_since column to devices table.');
+    } catch (err) {
+      if (err.code !== 'ER_DUP_FIELDNAME') {
+        console.error('Error adding idle_since column:', err.message);
+      }
+    }
     connection.release();
   })
   .catch(err => {
@@ -45,11 +53,23 @@ async function saveLocation(imei, locationData) {
     await pool.execute(query, values);
     
     // Update the last known position and status in devices table
-    await pool.execute(`
-      UPDATE devices 
-      SET last_update = NOW(), status = ?
-      WHERE imei = ?
-    `, [locationData.speed > 0 ? 'moving' : 'stopped', imei]);
+    const status = locationData.speed > 0 ? 'moving' : 'stopped';
+    const isIdle = (locationData.speed === 0 && locationData.isGpsTrackingOn);
+    
+    let updateQuery = `UPDATE devices SET last_update = NOW(), status = ?`;
+    let queryParams = [status];
+
+    if (locationData.speed > 0 || !locationData.isGpsTrackingOn) {
+      updateQuery += `, idle_since = NULL`;
+    } else if (isIdle) {
+      // Set idle_since to NOW() only if it's currently NULL
+      updateQuery += `, idle_since = COALESCE(idle_since, NOW())`;
+    }
+
+    updateQuery += ` WHERE imei = ?`;
+    queryParams.push(imei);
+
+    await pool.execute(updateQuery, queryParams);
     
   } catch (err) {
     console.error('Error saving location to DB:', err);
@@ -76,8 +96,8 @@ async function verifyOrRegisterDevice(imei) {
 async function getLatestVehiclePositions() {
   const query = `
     SELECT 
-      d.id, d.imei, d.plate_number as plate, d.status,
-      p.latitude as lat, p.longitude as lng, p.speed, p.course, p.device_time as last_update
+      d.id, d.imei, d.plate_number as plate, d.status, d.idle_since,
+      p.latitude as lat, p.longitude as lng, p.speed, p.course, p.device_time as last_update, p.ignition
     FROM devices d
     LEFT JOIN (
       SELECT p1.*

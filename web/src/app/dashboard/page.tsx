@@ -144,7 +144,16 @@ export default function DashboardPage() {
         if (index > -1) {
           // Update existing vehicle
           const updated = [...prevVehicles];
-          updated[index] = { ...updated[index], ...newLocation };
+          const newV = { ...updated[index], ...newLocation };
+          
+          // Handle idle_since logic on the frontend for real-time updates
+          if (newV.speed > 0 || !newV.ignition) {
+            newV.idle_since = null;
+          } else if (newV.speed === 0 && newV.ignition && !newV.idle_since) {
+            newV.idle_since = new Date().toISOString();
+          }
+          
+          updated[index] = newV;
           return updated;
         } else {
           // Add new vehicle if not in list
@@ -153,8 +162,14 @@ export default function DashboardPage() {
       });
     });
 
+    // Force re-render every 5 seconds so time-based colors (Orange > 25s, Purple > 60s) update without waiting for new packets
+    const interval = setInterval(() => {
+      setVehicles(v => [...v]);
+    }, 5000);
+
     return () => {
       socket.disconnect();
+      clearInterval(interval);
     };
   }, []);
 

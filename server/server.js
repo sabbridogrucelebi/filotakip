@@ -155,6 +155,7 @@ async function handleLocationPacket(socket, data) {
       speed: locationData.speed,
       course: locationData.course,
       status: locationData.speed > 0 ? 'moving' : 'stopped',
+      ignition: locationData.isGpsTrackingOn,
       last_update: new Date().toISOString()
     };
     
