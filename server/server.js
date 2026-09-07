@@ -176,6 +176,7 @@ server.listen(PORT, () => {
   console.log(`TCP Tracking Server listening on port ${PORT}...`);
 });
 
-httpServer.listen(API_PORT, () => {
+httpServer.listen(API_PORT, async () => {
   console.log(`HTTP/WebSocket API Server listening on port ${API_PORT}...`);
+  await db.cleanGhostDevices();
 });
