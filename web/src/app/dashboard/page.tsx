@@ -35,6 +35,45 @@ export default function DashboardPage() {
   const [showCards, setShowCards] = useState(true);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [serverStatus, setServerStatus] = useState("%0.0"); // Just a fun metric
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [focusTarget, setFocusTarget] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    
+    setIsSearching(true);
+    const query = searchQuery.toLowerCase().trim();
+
+    // 1. Check if it's a vehicle (Plate or IMEI)
+    const vehicle = vehicles.find(v => 
+      (v.plate && v.plate.toLowerCase().includes(query)) || 
+      (v.imei && v.imei.toLowerCase().includes(query))
+    );
+
+    if (vehicle && vehicle.lat && vehicle.lng) {
+      setFocusTarget({ lat: vehicle.lat, lng: vehicle.lng, zoom: 16 });
+      setIsSearching(false);
+      return;
+    }
+
+    // 2. Not a vehicle, try Geocoding (Address search) via Nominatim
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (data && data.length > 0) {
+        setFocusTarget({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), zoom: 14 });
+      } else {
+        alert("Araç veya adres bulunamadı!");
+      }
+    } catch (err) {
+      console.error("Geocoding failed:", err);
+      alert("Adres araması başarısız oldu.");
+    }
+    
+    setIsSearching(false);
+  };
 
   // Setup WebSockets and Initial Fetch
   useEffect(() => {
@@ -85,24 +124,30 @@ export default function DashboardPage() {
     <div className="w-full h-full relative bg-[#02040a] overflow-hidden">
       {/* Background Map */}
       <div className="absolute inset-0 z-0">
-        <LiveMap vehicles={vehicles} />
+        <LiveMap vehicles={vehicles} focusTarget={focusTarget} />
       </div>
 
       {/* Top Search Bar */}
       <div className="absolute top-6 left-0 right-0 z-20 flex justify-center pointer-events-none px-4">
-        <div className="w-full max-w-2xl bg-[#050B14]/80 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] pointer-events-auto flex items-center gap-2 group focus-within:border-cyan-500/70 focus-within:shadow-[0_0_30px_rgba(6,182,212,0.3)] transition-all">
+        <form onSubmit={handleSearch} className="w-full max-w-2xl bg-[#050B14]/80 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] pointer-events-auto flex items-center gap-2 group focus-within:border-cyan-500/70 focus-within:shadow-[0_0_30px_rgba(6,182,212,0.3)] transition-all">
           <div className="pl-4">
             <Search className="w-5 h-5 text-cyan-500 group-focus-within:text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.5)] transition-colors" />
           </div>
           <input 
             type="text"
-            placeholder="Araç Plakası veya IMEI Ara..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Araç Plakası, IMEI veya Adres Ara (Örn: Konya, Selçuklu)" 
             className="w-full bg-transparent border-none text-white placeholder-slate-500 focus:outline-none py-2 px-2 font-mono text-sm tracking-wide"
           />
-          <button className="bg-cyan-950/50 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 px-6 py-2 rounded-xl text-xs font-bold tracking-widest uppercase transition-colors shadow-[0_0_15px_rgba(6,182,212,0.2)]">
-            Ara
+          <button 
+            type="submit" 
+            disabled={isSearching}
+            className="bg-cyan-950/50 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 px-6 py-2 rounded-xl text-xs font-bold tracking-widest uppercase transition-colors shadow-[0_0_15px_rgba(6,182,212,0.2)] disabled:opacity-50"
+          >
+            {isSearching ? '...' : 'Ara'}
           </button>
-        </div>
+        </form>
       </div>
 
       {/* Bottom KPI Cards */}

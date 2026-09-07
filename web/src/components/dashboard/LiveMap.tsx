@@ -82,7 +82,17 @@ function AutoZoom({ vehicles }: { vehicles: any[] }) {
   return null;
 }
 
-export default function LiveMap({ vehicles = [] }: { vehicles: any[] }) {
+function FocusController({ target }: { target: { lat: number; lng: number; zoom: number } | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (target) {
+      map.flyTo([target.lat, target.lng], target.zoom, { duration: 1.5 });
+    }
+  }, [target, map]);
+  return null;
+}
+
+export default function LiveMap({ vehicles = [], focusTarget }: { vehicles: any[], focusTarget?: { lat: number; lng: number; zoom: number } | null }) {
   return (
     <div className="w-full h-full relative z-0">
       <MapContainer 
@@ -92,6 +102,7 @@ export default function LiveMap({ vehicles = [] }: { vehicles: any[] }) {
         zoomControl={false}
       >
         <AutoZoom vehicles={vehicles} />
+        <FocusController target={focusTarget || null} />
         
         {/* Google Maps (Light Theme Roadmap) */}
         <TileLayer
