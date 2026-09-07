@@ -53,8 +53,8 @@ const createPremiumVehicleIcon = (v: any) => {
           <div class="relative w-4 h-4 rounded-full border-[3px] border-white z-10 shadow-lg" style="background-color: ${color}; box-shadow: 0 2px 5px rgba(0,0,0,0.5);"></div>
         </div>
         <!-- Permanent Plate Label Below Marker -->
-        <div class="mt-1 bg-[#111827]/90 backdrop-blur-md border border-white/10 px-2 py-0.5 rounded shadow-[0_4px_10px_rgba(0,0,0,0.5)] z-30 flex flex-col items-center whitespace-nowrap">
-          <span class="text-white font-bold text-[10px] tracking-wider" style="color: ${color === '#000000' ? '#e2e8f0' : color}; text-shadow: 0 0 5px ${shadow};">
+        <div class="mt-1 z-30 flex flex-col items-center whitespace-nowrap">
+          <span class="font-extrabold text-[11px] tracking-wider" style="color: ${color === '#000000' ? '#334155' : color}; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0px 2px 4px rgba(0,0,0,0.5);">
             ${plate}
           </span>
         </div>
