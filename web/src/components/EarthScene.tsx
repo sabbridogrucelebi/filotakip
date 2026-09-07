@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 
 export default function EarthScene() {
-  const globeRef = useRef<any>();
+  const globeRef = useRef<any>(null);
   const [countries, setCountries] = useState({ features: [] });
   const [dimensions, setDimensions] = useState({ width: 1200, height: 800 });
   
