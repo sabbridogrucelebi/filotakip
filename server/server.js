@@ -4,7 +4,7 @@ const http = require('http');
 const cors = require('cors');
 const { Server } = require('socket.io');
 
-const PORT = process.env.PORT || 5000; // TCP Port
+const PORT = process.env.PORT || 36025; // TCP Port
 const API_PORT = process.env.API_PORT || 3001; // HTTP/WS Port
 
 // Setup Express and Socket.io
