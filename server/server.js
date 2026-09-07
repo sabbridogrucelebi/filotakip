@@ -106,8 +106,12 @@ const connectedDevices = new Map();
 
 async function handleLoginPacket(socket, data) {
   const terminalIdRaw = data.subarray(4, 12);
-  const imei = terminalIdRaw.toString('hex');
-  console.log(`Login Packet from IMEI: ${imei}`);
+  let imei = terminalIdRaw.toString('hex');
+  // GT06 sends 8 bytes (16 hex chars). Standard IMEI is 15 digits, usually padded with a leading 0.
+  if (imei.startsWith('0') && imei.length === 16) {
+    imei = imei.substring(1);
+  }
+  console.log(`[TCP] Login Packet from IMEI: ${imei}`);
   
   connectedDevices.set(socket, imei);
   await db.verifyOrRegisterDevice(imei);
