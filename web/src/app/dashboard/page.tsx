@@ -39,7 +39,7 @@ export default function DashboardPage() {
   // Setup WebSockets and Initial Fetch
   useEffect(() => {
     // 1. Fetch initial positions from REST API
-    fetch('http://localhost:3001/api/vehicles')
+    fetch('/api/vehicles')
       .then(res => res.json())
       .then(data => {
         setVehicles(data);
@@ -51,7 +51,7 @@ export default function DashboardPage() {
       });
 
     // 2. Connect to Socket.IO for Live Updates
-    const socket = io('http://localhost:3001');
+    const socket = io();
 
     socket.on('connect', () => console.log('Socket connected!'));
 

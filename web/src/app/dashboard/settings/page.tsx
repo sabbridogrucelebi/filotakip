@@ -31,7 +31,7 @@ export default function SettingsPage() {
     setError('');
     
     try {
-      const res = await fetch(`http://localhost:3001/api/devices/locate/${imei}`);
+      const res = await fetch(`/api/devices/locate/${imei}`);
       const data = await res.json();
       
       if (res.ok && data.lat) {
@@ -55,7 +55,7 @@ export default function SettingsPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`http://localhost:3001/api/devices/${imei}`, {
+      const res = await fetch(`/api/devices/${imei}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
