@@ -1,0 +1,44 @@
+name: Deploy to cPanel
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚚 Get latest code
+        uses: actions/checkout@v4
+      
+      # Web klasöründe bağımlılıkları yükle ve Next.js'i derle
+      - name: ⚙️ Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: 📦 Install Web Dependencies & Build
+        working-directory: ./web
+        run: |
+          npm ci
+          npm run build
+          
+      # Backend (Server) ve Frontend (Web) kısımlarını dağıtıma hazırlama
+      # Next.js'te Cpanel için 'out' klasörü veya custom server kullanılabilir.
+      # Şimdilik tüm kaynak kodlarını FTP'ye atıyoruz. cPanel'de Node.js App kurmamız gerekecek.
+      
+      - name: 🚀 Sync files via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./
+          server-dir: public_html/filotakip/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/.env*
+            **/*.log

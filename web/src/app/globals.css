@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+}
+
+/* Ultra-Premium Dark Theme */
+body {
+  background-color: #000000;
+  color: #ffffff;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  overflow: hidden;
+}
+
+/* Subtle Dot Pattern Background */
+.bg-dot-pattern {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Premium Minimalist Input */
+.premium-input {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  transition: all 0.2s ease-out;
+}
+
+.premium-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.05) !important;
+}
+
+.premium-input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+/* Fix Browser Autofill */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #0a0a0a inset !important;
+  -webkit-text-fill-color: white !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Ambient Glow Animations */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.1); }
+}
+.animate-ambient {
+  animation: pulse-slow 8s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Leaflet Dark Theme Overrides */
+.leaflet-popup-content-wrapper {
+  background: rgba(2, 4, 10, 0.85) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #f8fafc !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8) !important;
+}
+.leaflet-popup-tip {
+  background: rgba(2, 4, 10, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.premium-popup .leaflet-popup-content {
+  margin: 16px 20px !important;
+  line-height: 1.6 !important;
+}
+.leaflet-container {
+  font-family: inherit !important;
+}
+.leaflet-bar a {
+  background-color: #0f172a !important;
+  color: #fff !important;
+  border-color: #334155 !important;
+}
+.leaflet-bar a:hover {
+  background-color: #1e293b !important;
+}
