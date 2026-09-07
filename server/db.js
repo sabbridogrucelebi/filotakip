@@ -149,7 +149,7 @@ module.exports = {
 
 async function cleanGhostDevices() {
   try {
-    await pool.execute(`DELETE FROM positions WHERE imei LIKE '0%' AND LENGTH(imei) > 15`);
+    await pool.execute(`DELETE FROM positions WHERE device_imei LIKE '0%' AND LENGTH(device_imei) > 15`);
     await pool.execute(`DELETE FROM devices WHERE imei LIKE '0%' AND LENGTH(imei) > 15`);
     console.log('🧹 Cleaned up ghost devices from database');
   } catch (err) {
