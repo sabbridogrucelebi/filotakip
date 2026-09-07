@@ -39,6 +39,22 @@ const createNeonIcon = (speed: number) => {
   });
 };
 
+// A custom RED neon icon for searched addresses
+const createAddressIcon = () => {
+  return new L.DivIcon({
+    className: 'bg-transparent',
+    html: `
+      <div class="relative flex flex-col items-center justify-center w-8 h-12 -mt-4">
+        <div class="absolute inset-0 rounded-full animate-ping opacity-50 bg-rose-500"></div>
+        <div class="relative w-5 h-5 rounded-full border-2 border-white bg-rose-500 z-10 shadow-[0_0_20px_rgba(244,63,94,0.8),0_0_40px_rgba(244,63,94,0.6)]"></div>
+        <div class="w-1 h-4 bg-gradient-to-b from-rose-500 to-transparent"></div>
+      </div>
+    `,
+    iconSize: [32, 48],
+    iconAnchor: [16, 48]
+  });
+};
+
 // Component to handle automatic flying to the densest cluster
 function AutoZoom({ vehicles }: { vehicles: any[] }) {
   const map = useMap();
@@ -92,7 +108,15 @@ function FocusController({ target }: { target: { lat: number; lng: number; zoom:
   return null;
 }
 
-export default function LiveMap({ vehicles = [], focusTarget }: { vehicles: any[], focusTarget?: { lat: number; lng: number; zoom: number } | null }) {
+export default function LiveMap({ 
+  vehicles = [], 
+  focusTarget,
+  searchMarker
+}: { 
+  vehicles: any[], 
+  focusTarget?: { lat: number; lng: number; zoom: number } | null,
+  searchMarker?: { lat: number; lng: number; title: string } | null
+}) {
   return (
     <div className="w-full h-full relative z-0">
       <MapContainer 
@@ -124,6 +148,16 @@ export default function LiveMap({ vehicles = [], focusTarget }: { vehicles: any[
             </Marker>
           );
         })}
+
+        {/* Address Search Marker */}
+        {searchMarker && (
+          <Marker position={[searchMarker.lat, searchMarker.lng]} icon={createAddressIcon()}>
+            <Popup className="premium-popup border-rose-500/50">
+              <div className="font-bold text-white tracking-wide text-xs">{searchMarker.title}</div>
+              <div className="text-[10px] text-rose-400 mt-1 uppercase font-bold tracking-widest">Arama Sonucu</div>
+            </Popup>
+          </Marker>
+        )}
       </MapContainer>
     </div>
   );
