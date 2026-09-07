@@ -1,15 +1,22 @@
+const fs = require('fs');
+const path = require('path');
 const { pool } = require('./db');
 
 async function migrate() {
-  console.log('Running database migrations...');
+  console.log('Running database setup/migrations for MySQL...');
   try {
-    await pool.query(`
-      ALTER TABLE devices 
-      ADD COLUMN IF NOT EXISTS driver_name VARCHAR(100),
-      ADD COLUMN IF NOT EXISTS driver_phone VARCHAR(20),
-      ADD COLUMN IF NOT EXISTS vehicle_year INTEGER;
-    `);
-    console.log('Migration successful: Added driver_name, driver_phone, vehicle_year to devices table.');
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const sql = fs.readFileSync(schemaPath, 'utf8');
+    
+    // Split the SQL file by semicolons to execute queries one by one
+    const queries = sql.split(';').filter(q => q.trim() !== '');
+
+    for (let query of queries) {
+      if (query.trim().length > 0) {
+        await pool.query(query);
+      }
+    }
+    console.log('Migration successful: MySQL tables are ready.');
   } catch (error) {
     console.error('Migration failed:', error);
   } finally {
