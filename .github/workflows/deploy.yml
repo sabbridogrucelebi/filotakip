@@ -45,10 +45,15 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           script: |
+            set -e
+            
             # Gerekli Programları Kur
+            sudo apt-get update
+            sudo apt-get install -y unzip curl
+            
             if ! command -v node &> /dev/null; then
               curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-              sudo apt-get install -y nodejs unzip
+              sudo apt-get install -y nodejs
             fi
             if ! command -v pm2 &> /dev/null; then
               sudo npm install -g pm2
@@ -56,47 +61,47 @@ jobs:
             
             # Veritabanını (MariaDB) Kur
             if ! command -v mysql &> /dev/null; then
-              sudo apt-get update
               sudo apt-get install -y mariadb-server
-              sudo systemctl start mariadb
-              sudo systemctl enable mariadb
+              sudo systemctl start mariadb || true
+              sudo systemctl enable mariadb || true
             fi
             
             # Veritabanı ve Kullanıcı Oluştur
             sudo mysql -e "CREATE DATABASE IF NOT EXISTS filotakip;"
-            sudo mysql -e "CREATE USER IF NOT EXISTS '${{ secrets.DB_USER }}'@'localhost' IDENTIFIED BY '${{ secrets.DB_PASSWORD }}';"
+            sudo mysql -e "CREATE USER IF NOT EXISTS '${{ secrets.DB_USER }}'@'localhost' IDENTIFIED BY '${{ secrets.DB_PASSWORD }}';" || true
+            sudo mysql -e "ALTER USER '${{ secrets.DB_USER }}'@'localhost' IDENTIFIED BY '${{ secrets.DB_PASSWORD }}';" || true
             sudo mysql -e "GRANT ALL PRIVILEGES ON filotakip.* TO '${{ secrets.DB_USER }}'@'localhost';"
             sudo mysql -e "FLUSH PRIVILEGES;"
             
             # Dosyaları Zipten Çıkar
-            mkdir -p /var/www/filotakip
+            sudo mkdir -p /var/www/filotakip
             cd /var/www/filotakip
-            unzip -o /tmp/deploy.zip
-            rm /tmp/deploy.zip
+            sudo unzip -o /tmp/deploy.zip
+            sudo rm -f /tmp/deploy.zip
             
             # Tabloları Yükle
             sudo mysql -u ${{ secrets.DB_USER }} -p"${{ secrets.DB_PASSWORD }}" filotakip < server/schema.sql
             
             # Backend Kurulumu (.env)
             cd server
-            echo "DB_HOST=localhost" > .env
-            echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-            echo "DB_NAME=filotakip" >> .env
-            npm install --production
+            sudo bash -c 'echo "DB_HOST=localhost" > .env'
+            sudo bash -c 'echo "DB_USER=${{ secrets.DB_USER }}" >> .env'
+            sudo bash -c 'echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env'
+            sudo bash -c 'echo "DB_NAME=filotakip" >> .env'
+            sudo npm install --production
             
             # Frontend Kurulumu
             cd ../web
-            npm install --production
+            sudo npm install --production
             
             # Sunucuyu Başlat
             cd /var/www/filotakip
-            pm2 stop all || true
-            pm2 delete all || true
+            sudo pm2 stop all || true
+            sudo pm2 delete all || true
             
-            pm2 start server/server.js --name "filotakip-backend"
+            sudo pm2 start server/server.js --name "filotakip-backend"
             cd web
-            pm2 start "npm run start" --name "filotakip-frontend"
+            sudo pm2 start "npm run start" --name "filotakip-frontend"
             
-            pm2 save
-            pm2 startup | tail -n 1 | bash
+            sudo pm2 save
+            sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u root --hp /root || true
