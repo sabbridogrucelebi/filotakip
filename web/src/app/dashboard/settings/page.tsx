@@ -5,6 +5,24 @@ import { Search, MapPin, CheckCircle, Smartphone, User, Car, Hash, Info, ShieldC
 
 const MiniMap = dynamic(() => import('@/components/dashboard/MiniMap'), { ssr: false });
 
+const InputField = ({ icon: Icon, label, name, type = "text", placeholder, value, onChange }: any) => (
+  <div className="relative group">
+    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2 block ml-1">{label}</label>
+    <div className="relative">
+      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+        <Icon className="h-5 w-5 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
+      </div>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(name, e.target.value)}
+        className="w-full bg-[#0a0f1c]/50 border border-slate-700 focus:border-blue-500/50 rounded-xl py-3 pl-12 pr-4 text-white placeholder-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
+      />
+    </div>
+  </div>
+);
+
 export default function SettingsPage() {
   const [step, setStep] = useState(1);
   const [imei, setImei] = useState('');
@@ -21,6 +39,10 @@ export default function SettingsPage() {
     driver_phone: '',
     sim: ''
   });
+
+  const handleInputChange = (name: string, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleSearch = async () => {
     if (!imei || imei.length < 10) {
@@ -73,23 +95,7 @@ export default function SettingsPage() {
     }
   };
 
-  const InputField = ({ icon: Icon, label, name, type = "text", placeholder }: any) => (
-    <div className="relative group">
-      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2 block ml-1">{label}</label>
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <Icon className="h-5 w-5 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
-        </div>
-        <input
-          type={type}
-          placeholder={placeholder}
-          value={formData[name as keyof typeof formData]}
-          onChange={(e) => setFormData({ ...formData, [name]: e.target.value })}
-          className="w-full bg-[#0a0f1c]/50 border border-slate-700 focus:border-blue-500/50 rounded-xl py-3 pl-12 pr-4 text-white placeholder-slate-600 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
-        />
-      </div>
-    </div>
-  );
+
 
   return (
     <div className="w-full h-full bg-[#02040a] p-8 lg:p-12 overflow-y-auto relative">
@@ -225,18 +231,18 @@ export default function SettingsPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
                     <div className="md:col-span-2">
-                      <InputField icon={Car} label="Araç Plakası" name="plate" placeholder="34 ABC 123" />
+                      <InputField icon={Car} label="Araç Plakası" name="plate" placeholder="34 ABC 123" value={formData.plate} onChange={handleInputChange} />
                     </div>
-                    <InputField icon={Info} label="Araç Marka & Model" name="model" placeholder="Ford Transit" />
-                    <InputField icon={Info} label="Araç Yılı" name="year" type="number" placeholder="2023" />
+                    <InputField icon={Info} label="Araç Marka & Model" name="model" placeholder="Ford Transit" value={formData.model} onChange={handleInputChange} />
+                    <InputField icon={Info} label="Araç Yılı" name="year" type="number" placeholder="2023" value={formData.year} onChange={handleInputChange} />
                     
                     <div className="col-span-full h-px bg-slate-800 my-2"></div>
                     
-                    <InputField icon={User} label="Şoför Adı Soyadı" name="driver_name" placeholder="Ahmet Yılmaz" />
-                    <InputField icon={Smartphone} label="Şoför Telefonu" name="driver_phone" placeholder="0555 123 45 67" />
+                    <InputField icon={User} label="Şoför Adı Soyadı" name="driver_name" placeholder="Ahmet Yılmaz" value={formData.driver_name} onChange={handleInputChange} />
+                    <InputField icon={Smartphone} label="Şoför Telefonu" name="driver_phone" placeholder="0555 123 45 67" value={formData.driver_phone} onChange={handleInputChange} />
                     
                     <div className="md:col-span-2">
-                      <InputField icon={Smartphone} label="Cihaz İçindeki SIM Numarası" name="sim" placeholder="0555 987 65 43" />
+                      <InputField icon={Smartphone} label="Cihaz İçindeki SIM Numarası" name="sim" placeholder="0555 987 65 43" value={formData.sim} onChange={handleInputChange} />
                     </div>
                   </div>
 
