@@ -570,12 +570,38 @@ export default function LiveMap({
               <iframe
                 title="Street View"
                 width="100%"
-                height="280"
+                height="250"
                 frameBorder="0"
-                style={{ border: 0, display: 'block' }}
-                src={`https://www.google.com/maps/embed?pb=!4v0!6m8!1m7!1s!2m2!1d${selectedVehicle.lat}!2d${selectedVehicle.lng}!3f0!4f0!5f0.7820865974627469&layer=c&cbll=${selectedVehicle.lat},${selectedVehicle.lng}&cbp=11,0,0,0,0`}
+                style={{ border: 0, display: 'block', background: '#111' }}
+                src={`https://maps.google.com/maps?layer=c&cbll=${selectedVehicle.lat},${selectedVehicle.lng}&cbp=11,0,0,0,0&output=svembed`}
                 allowFullScreen
               ></iframe>
+              {/* Fallback: open in new tab */}
+              <div style={{
+                background: 'linear-gradient(135deg, #0f0a2e, #1a1035)',
+                padding: '10px 16px',
+                borderTop: '1px solid rgba(124,58,237,0.15)',
+                display: 'flex',
+                justifyContent: 'center',
+              }}>
+                <a
+                  href={`https://www.google.com/maps/@${selectedVehicle.lat},${selectedVehicle.lng},3a,75y,0h,90t/data=!3m4!1e1!3m2!1s!2e0`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: '#a78bfa',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    letterSpacing: '0.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  🔗 Yeni Sekmede Google Street View Aç
+                </a>
+              </div>
             </div>
           )}
         </div>
