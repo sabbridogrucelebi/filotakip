@@ -73,14 +73,32 @@ const createPremiumVehicleIcon = (v: any) => {
   const { color } = getVehicleStatusColor(v);
   const plate = v.plate || v.imei || 'Bilinmiyor';
   const shadow = `rgba(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)},0.8)`;
+  const isMoving = v.speed > 0;
+  const course = v.course || 0;
+
+  // Direction arrow SVG - only shown when moving
+  const directionArrow = isMoving ? `
+    <div style="position:absolute; top:-22px; left:50%; transform:translateX(-50%) rotate(${course}deg); z-index:25; filter: drop-shadow(0 0 6px ${shadow});">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="arrowGrad_${plate.replace(/\s/g,'')}" x1="14" y1="0" x2="14" y2="28" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="${color}" stop-opacity="1"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0.4"/>
+          </linearGradient>
+        </defs>
+        <path d="M14 2 L22 18 L14 14 L6 18 Z" fill="url(#arrowGrad_${plate.replace(/\s/g,'')})" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+    </div>
+  ` : '';
 
   return new L.DivIcon({
     className: 'bg-transparent',
     html: `
-      <div class="relative flex flex-col items-center justify-center -mt-6">
+      <div class="relative flex flex-col items-center justify-center" style="margin-top:-24px;">
+        ${directionArrow}
         <!-- The Circular Marker -->
         <div class="relative flex items-center justify-center w-6 h-6 z-20">
-          <div class="absolute inset-0 rounded-full animate-pulse opacity-40" style="background-color: ${color}; box-shadow: 0 0 20px ${shadow};"></div>
+          <div class="absolute inset-0 rounded-full ${isMoving ? '' : 'animate-pulse'} opacity-40" style="background-color: ${color}; box-shadow: 0 0 20px ${shadow};"></div>
           <div class="relative w-4 h-4 rounded-full border-[3px] border-white z-10 shadow-lg" style="background-color: ${color}; box-shadow: 0 2px 5px rgba(0,0,0,0.5);"></div>
         </div>
         <!-- Permanent Plate Label Below Marker -->
@@ -91,8 +109,8 @@ const createPremiumVehicleIcon = (v: any) => {
         </div>
       </div>
     `,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20]
+    iconSize: [40, 50],
+    iconAnchor: [20, 30]
   });
 };
 
