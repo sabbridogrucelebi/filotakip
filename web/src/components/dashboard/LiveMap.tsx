@@ -9,9 +9,9 @@ const MAP_LAYERS = {
   google_satellite: { name: 'Google Uydu', provider: 'Google', icon: '🛰️', url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attribution: '&copy; Google Maps' },
   google_hybrid: { name: 'Google Hibrit', provider: 'Google', icon: '🌍', url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', attribution: '&copy; Google Maps' },
   google_terrain: { name: 'Google Arazi', provider: 'Google', icon: '⛰️', url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', attribution: '&copy; Google Maps' },
-  yandex_road: { name: 'Yandex Yol', provider: 'Yandex', icon: '🗺️', url: 'https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&scale=1&lang=tr_TR', attribution: '&copy; Yandex Maps' },
-  yandex_satellite: { name: 'Yandex Uydu', provider: 'Yandex', icon: '🛰️', url: 'https://core-sat.maps.yandex.net/tiles?l=sat&x={x}&y={y}&z={z}&scale=1&lang=tr_TR', attribution: '&copy; Yandex Maps' },
-  yandex_hybrid: { name: 'Yandex Hibrit', provider: 'Yandex', icon: '🌍', url: 'https://core-renderer-tiles.maps.yandex.net/tiles?l=skl&x={x}&y={y}&z={z}&scale=1&lang=tr_TR', attribution: '&copy; Yandex Maps' },
+  osm_standard: { name: 'OSM Standart', provider: 'OSM', icon: '🗺️', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap' },
+  osm_topo: { name: 'OSM Topoğrafya', provider: 'OSM', icon: '⛰️', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', attribution: '&copy; OpenTopoMap' },
+  esri_satellite: { name: 'Esri Uydu', provider: 'OSM', icon: '🛰️', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attribution: '&copy; Esri' },
 } as const;
 type MapLayerKey = keyof typeof MAP_LAYERS;
 
@@ -324,10 +324,10 @@ export default function LiveMap({
                 </button>
               ))}
             </div>
-            {/* Yandex Section */}
+            {/* OSM / Esri Section */}
             <div style={{ padding: '10px 14px 12px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, color: '#FC3F1D', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Yandex Haritalar</div>
-              {(Object.entries(MAP_LAYERS) as [MapLayerKey, typeof MAP_LAYERS[MapLayerKey]][]).filter(([,v]) => v.provider === 'Yandex').map(([key, layer]) => (
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#10b981', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Diğer Haritalar</div>
+              {(Object.entries(MAP_LAYERS) as [MapLayerKey, typeof MAP_LAYERS[MapLayerKey]][]).filter(([,v]) => v.provider === 'OSM').map(([key, layer]) => (
                 <button
                   key={key}
                   onClick={() => { setMapLayer(key); setShowLayerMenu(false); }}
@@ -339,11 +339,11 @@ export default function LiveMap({
                     padding: '8px 10px',
                     marginBottom: '4px',
                     borderRadius: '10px',
-                    border: mapLayer === key ? '1px solid rgba(252,63,29,0.5)' : '1px solid transparent',
-                    background: mapLayer === key ? 'rgba(252,63,29,0.12)' : 'transparent',
+                    border: mapLayer === key ? '1px solid rgba(16,185,129,0.5)' : '1px solid transparent',
+                    background: mapLayer === key ? 'rgba(16,185,129,0.12)' : 'transparent',
                     cursor: 'pointer',
                     transition: 'all 0.15s',
-                    color: mapLayer === key ? '#fca5a5' : '#94a3b8',
+                    color: mapLayer === key ? '#6ee7b7' : '#94a3b8',
                     fontSize: '12px',
                     fontWeight: mapLayer === key ? 700 : 500,
                     textAlign: 'left',
@@ -351,7 +351,7 @@ export default function LiveMap({
                 >
                   <span style={{ fontSize: '15px' }}>{layer.icon}</span>
                   {layer.name}
-                  {mapLayer === key && <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#FC3F1D' }}>✓</span>}
+                  {mapLayer === key && <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#10b981' }}>✓</span>}
                 </button>
               ))}
             </div>
