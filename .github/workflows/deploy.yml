@@ -35,7 +35,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           source: "deploy.zip"
-          target: "/tmp"
+          target: "~"
           
       - name: 🔧 Setup Database & Server
         uses: appleboy/ssh-action@v1.0.3
@@ -76,8 +76,8 @@ jobs:
             # Dosyaları Zipten Çıkar
             sudo mkdir -p /var/www/filotakip
             cd /var/www/filotakip
-            sudo unzip -o /tmp/deploy.zip
-            sudo rm -f /tmp/deploy.zip
+            sudo unzip -o ~/deploy.zip
+            sudo rm -f ~/deploy.zip
             
             # Tabloları Yükle
             sudo mysql -u ${{ secrets.DB_USER }} -p"${{ secrets.DB_PASSWORD }}" filotakip < server/schema.sql
@@ -105,3 +105,4 @@ jobs:
             
             sudo pm2 save
             sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u root --hp /root || true
+
