@@ -235,6 +235,13 @@ async function handleLocationPacket(socket, data) {
 
     const locationData = parseLocationPacket(data);
     
+    // Snap-to-road: use OSRM nearest to align GPS coordinates to nearest road
+    const snapped = await snapToRoad(locationData.latitude, locationData.longitude);
+    if (snapped) {
+      locationData.latitude = snapped.lat;
+      locationData.longitude = snapped.lng;
+    }
+    
     // Save to DB
     await db.saveLocation(imei, locationData);
     
@@ -260,6 +267,31 @@ async function handleLocationPacket(socket, data) {
     
   } catch (err) {
     console.error('Error parsing/saving location packet:', err.message);
+  }
+}
+
+// Snap-to-road using OSRM nearest service (free, no API key needed)
+async function snapToRoad(lat, lng) {
+  try {
+    const url = `https://router.project-osrm.org/nearest/v1/driving/${lng},${lat}?number=1`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000); // 2s timeout
+    
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    
+    const result = await response.json();
+    if (result.code === 'Ok' && result.waypoints && result.waypoints.length > 0) {
+      const wp = result.waypoints[0];
+      // Only snap if the distance is reasonable (< 50 meters)
+      if (wp.distance < 50) {
+        return { lat: wp.location[1], lng: wp.location[0] };
+      }
+    }
+    return null; // Keep original if no road nearby
+  } catch (err) {
+    // If OSRM is down or timeout, silently fall back to raw GPS
+    return null;
   }
 }
 
