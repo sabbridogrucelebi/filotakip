@@ -25,14 +25,13 @@ const getVehicleStatusColor = (v: any) => {
   if (v.speed === 0 && !v.ignition) return { color: '#ef4444', glow: '#f87171', label: 'KONTAK KAPALI', sublabel: 'Park halinde, motor kapalı', icon: '🔴' };
   
   if (v.speed === 0 && v.ignition) {
-    if (!v.idle_since) return { color: '#3b82f6', glow: '#60a5fa', label: 'DURAKLADI', sublabel: 'Az önce durdu', icon: '🔵' };
+    if (!v.idle_since) return { color: '#f97316', glow: '#fb923c', label: 'KISA BEKLEME', sublabel: 'Kontak az önce açıldı', icon: '🟠' };
     const idleStart = new Date(v.idle_since);
     const idleTime = (now.getTime() - idleStart.getTime()) / 1000;
     
-    if (idleTime > 60) return { color: '#a855f7', glow: '#c084fc', label: 'RÖLANTİ', sublabel: `${Math.floor(idleTime/60)} dk ${Math.floor(idleTime%60)} sn kontak açık bekliyor`, icon: '🟣' };
-    if (idleTime > 25) return { color: '#f97316', glow: '#fb923c', label: 'KISA BEKLEME', sublabel: `${Math.floor(idleTime)} sn kontak açık bekliyor`, icon: '🟠' };
+    if (idleTime >= 60) return { color: '#a855f7', glow: '#c084fc', label: 'RÖLANTİ', sublabel: `${Math.floor(idleTime/60)} dk ${Math.floor(idleTime%60)} sn kontak açık bekliyor`, icon: '🟣' };
     
-    return { color: '#3b82f6', glow: '#60a5fa', label: 'DURAKLADI', sublabel: 'Az önce durdu', icon: '🔵' };
+    return { color: '#f97316', glow: '#fb923c', label: 'KISA BEKLEME', sublabel: `${Math.floor(idleTime)} sn kontak açık bekliyor`, icon: '🟠' };
   }
 
   return { color: '#64748b', glow: '#94a3b8', label: 'SİNYAL YOK', sublabel: 'Uyku modunda', icon: '🔘' };
