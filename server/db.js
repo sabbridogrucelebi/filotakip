@@ -109,6 +109,7 @@ async function getLatestVehiclePositions() {
   const query = `
     SELECT 
       d.id, d.imei, d.plate_number as plate, d.status, d.idle_since, d.acc_on as ignition,
+      d.driver_name, d.driver_phone, d.vehicle_model,
       p.latitude as lat, p.longitude as lng, p.speed, p.course, p.device_time as last_update
     FROM devices d
     LEFT JOIN (
