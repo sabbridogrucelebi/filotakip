@@ -137,9 +137,14 @@ export default function DashboardPage() {
       });
 
     // 2. Connect to Socket.IO for Live Updates
-    const socket = io();
+    // Connect directly to the backend port (3001) since Next.js rewrites don't proxy WebSocket upgrades
+    const backendUrl = typeof window !== 'undefined' 
+      ? `${window.location.protocol}//${window.location.hostname}:3001`
+      : 'http://127.0.0.1:3001';
+    const socket = io(backendUrl);
 
     socket.on('connect', () => console.log('Socket connected!'));
+    socket.on('connect_error', (err) => console.error('Socket connection error:', err.message));
 
     socket.on('location_update', (newLocation) => {
       setVehicles(prevVehicles => {
