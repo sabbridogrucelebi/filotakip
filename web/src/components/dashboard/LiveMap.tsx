@@ -1,7 +1,38 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+
+// ==================== MAP LAYER DEFINITIONS ====================
+const MAP_LAYERS = {
+  google_road: { name: 'Google Yol', provider: 'Google', icon: '🗺️', url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', attribution: '&copy; Google Maps' },
+  google_satellite: { name: 'Google Uydu', provider: 'Google', icon: '🛰️', url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attribution: '&copy; Google Maps' },
+  google_hybrid: { name: 'Google Hibrit', provider: 'Google', icon: '🌍', url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', attribution: '&copy; Google Maps' },
+  google_terrain: { name: 'Google Arazi', provider: 'Google', icon: '⛰️', url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', attribution: '&copy; Google Maps' },
+  yandex_road: { name: 'Yandex Yol', provider: 'Yandex', icon: '🗺️', url: 'https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&scale=1&lang=tr_TR', attribution: '&copy; Yandex Maps' },
+  yandex_satellite: { name: 'Yandex Uydu', provider: 'Yandex', icon: '🛰️', url: 'https://core-sat.maps.yandex.net/tiles?l=sat&x={x}&y={y}&z={z}&scale=1&lang=tr_TR', attribution: '&copy; Yandex Maps' },
+  yandex_hybrid: { name: 'Yandex Hibrit', provider: 'Yandex', icon: '🌍', url: 'https://core-renderer-tiles.maps.yandex.net/tiles?l=skl&x={x}&y={y}&z={z}&scale=1&lang=tr_TR', attribution: '&copy; Yandex Maps' },
+} as const;
+type MapLayerKey = keyof typeof MAP_LAYERS;
+
+// Dynamic TileLayer switcher component
+function DynamicTileLayer({ layerKey }: { layerKey: MapLayerKey }) {
+  const map = useMap();
+  const layerRef = useRef<L.TileLayer | null>(null);
+
+  useEffect(() => {
+    const layer = MAP_LAYERS[layerKey];
+    if (layerRef.current) {
+      map.removeLayer(layerRef.current);
+    }
+    const tileLayer = L.tileLayer(layer.url, { attribution: layer.attribution, maxZoom: 20 });
+    tileLayer.addTo(map);
+    layerRef.current = tileLayer;
+    return () => { if (layerRef.current) map.removeLayer(layerRef.current); };
+  }, [layerKey, map]);
+
+  return null;
+}
 
 // Fix leaflet default icon issue in Next.js
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -151,6 +182,8 @@ export default function LiveMap({
 }) {
   const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);
   const [showStreetView, setShowStreetView] = useState(false);
+  const [mapLayer, setMapLayer] = useState<MapLayerKey>('google_road');
+  const [showLayerMenu, setShowLayerMenu] = useState(false);
 
   // Keep selected vehicle data fresh
   useEffect(() => {
@@ -183,11 +216,8 @@ export default function LiveMap({
         <AutoZoom vehicles={vehicles} />
         <FocusController target={focusTarget || null} />
         
-        {/* Google Maps (Light Theme Roadmap) */}
-        <TileLayer
-          url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
-          attribution='&copy; Google Maps'
-        />
+        {/* Dynamic Map Layer */}
+        <DynamicTileLayer layerKey={mapLayer} />
         
         {vehicles.map(v => {
           if (!v.lat || !v.lng) return null;
@@ -213,6 +243,110 @@ export default function LiveMap({
           </Marker>
         )}
       </MapContainer>
+
+      {/* ==================== MAP LAYER SWITCHER ==================== */}
+      <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 1000 }}>
+        <button
+          onClick={() => setShowLayerMenu(!showLayerMenu)}
+          style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: '12px',
+            background: 'linear-gradient(145deg, rgba(8,12,28,0.95), rgba(2,6,18,0.98))',
+            border: '1px solid rgba(255,255,255,0.12)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5), 0 0 15px rgba(59,130,246,0.1)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '18px',
+            transition: 'all 0.2s',
+            backdropFilter: 'blur(20px)',
+          }}
+          title="Harita Katmanı"
+        >
+          🗂️
+        </button>
+
+        {showLayerMenu && (
+          <div style={{
+            position: 'absolute',
+            top: '50px',
+            right: '0',
+            width: '220px',
+            background: 'linear-gradient(145deg, rgba(8,12,28,0.97), rgba(2,6,18,0.99))',
+            borderRadius: '16px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(59,130,246,0.08)',
+            backdropFilter: 'blur(30px)',
+            overflow: 'hidden',
+            animation: 'slideIn 0.2s ease-out',
+          }}>
+            {/* Google Section */}
+            <div style={{ padding: '12px 14px 6px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#4285F4', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Google Haritalar</div>
+              {(Object.entries(MAP_LAYERS) as [MapLayerKey, typeof MAP_LAYERS[MapLayerKey]][]).filter(([,v]) => v.provider === 'Google').map(([key, layer]) => (
+                <button
+                  key={key}
+                  onClick={() => { setMapLayer(key); setShowLayerMenu(false); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '8px 10px',
+                    marginBottom: '4px',
+                    borderRadius: '10px',
+                    border: mapLayer === key ? '1px solid rgba(66,133,244,0.5)' : '1px solid transparent',
+                    background: mapLayer === key ? 'rgba(66,133,244,0.12)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    color: mapLayer === key ? '#93bbfc' : '#94a3b8',
+                    fontSize: '12px',
+                    fontWeight: mapLayer === key ? 700 : 500,
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ fontSize: '15px' }}>{layer.icon}</span>
+                  {layer.name}
+                  {mapLayer === key && <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#4285F4' }}>✓</span>}
+                </button>
+              ))}
+            </div>
+            {/* Yandex Section */}
+            <div style={{ padding: '10px 14px 12px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#FC3F1D', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Yandex Haritalar</div>
+              {(Object.entries(MAP_LAYERS) as [MapLayerKey, typeof MAP_LAYERS[MapLayerKey]][]).filter(([,v]) => v.provider === 'Yandex').map(([key, layer]) => (
+                <button
+                  key={key}
+                  onClick={() => { setMapLayer(key); setShowLayerMenu(false); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '8px 10px',
+                    marginBottom: '4px',
+                    borderRadius: '10px',
+                    border: mapLayer === key ? '1px solid rgba(252,63,29,0.5)' : '1px solid transparent',
+                    background: mapLayer === key ? 'rgba(252,63,29,0.12)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    color: mapLayer === key ? '#fca5a5' : '#94a3b8',
+                    fontSize: '12px',
+                    fontWeight: mapLayer === key ? 700 : 500,
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ fontSize: '15px' }}>{layer.icon}</span>
+                  {layer.name}
+                  {mapLayer === key && <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#FC3F1D' }}>✓</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ==================== PREMIUM VEHICLE INFO PANEL ==================== */}
       {selectedVehicle && status && (
