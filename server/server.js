@@ -44,16 +44,16 @@ function logRawPacket(imei, data) {
   if (logs.length > 50) logs.pop();
 }
 
-app.get('/api/diagnostics/packets/:imei?', (req, res) => {
-  if (req.params.imei) {
-    res.json(packetLog.get(req.params.imei) || []);
-  } else {
-    const all = {};
-    for (const [imei, logs] of packetLog.entries()) {
-      all[imei] = logs;
-    }
-    res.json(all);
+app.get('/api/diagnostics/packets/:imei', (req, res) => {
+  res.json(packetLog.get(req.params.imei) || []);
+});
+
+app.get('/api/diagnostics/packets', (req, res) => {
+  const all = {};
+  for (const [imei, logs] of packetLog.entries()) {
+    all[imei] = logs;
   }
+  res.json(all);
 });
 
 // Diagnostic: Check data intervals for each device (last 20 records)
