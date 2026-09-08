@@ -29,6 +29,45 @@ app.get('/api/vehicles', async (req, res) => {
   }
 });
 
+// Diagnostic: Check data intervals for each device (last 20 records)
+app.get('/api/diagnostics/intervals', async (req, res) => {
+  try {
+    const [rows] = await db.pool.execute(`
+      SELECT device_imei, device_time, speed, ignition
+      FROM positions 
+      ORDER BY id DESC 
+      LIMIT 50
+    `);
+    
+    // Group by device and calculate intervals
+    const byDevice = {};
+    rows.forEach(r => {
+      if (!byDevice[r.device_imei]) byDevice[r.device_imei] = [];
+      byDevice[r.device_imei].push(r);
+    });
+    
+    const result = {};
+    for (const [imei, records] of Object.entries(byDevice)) {
+      const intervals = [];
+      for (let i = 0; i < records.length - 1; i++) {
+        const diff = (new Date(records[i].device_time) - new Date(records[i+1].device_time)) / 1000;
+        intervals.push(diff);
+      }
+      result[imei] = {
+        record_count: records.length,
+        latest: records[0].device_time,
+        oldest: records[records.length - 1].device_time,
+        intervals_seconds: intervals,
+        avg_interval: intervals.length > 0 ? (intervals.reduce((a,b) => a+b, 0) / intervals.length).toFixed(1) : 'N/A'
+      };
+    }
+    
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // IMEI ile cihazın son konumunu bul
 app.get('/api/devices/locate/:imei', async (req, res) => {
   try {
