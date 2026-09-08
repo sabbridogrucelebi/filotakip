@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Phone, Navigation, User, Map as MapIcon, X } from 'lucide-react';
 
 // Fix leaflet default icon issue in Next.js
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -16,33 +15,34 @@ L.Icon.Default.mergeOptions({
 const getVehicleStatusColor = (v: any) => {
   const now = new Date();
   const lastUpdate = new Date(v.last_update);
-  const timeDiff = (now.getTime() - lastUpdate.getTime()) / 1000; // in seconds
+  const timeDiff = (now.getTime() - lastUpdate.getTime()) / 1000;
 
-  if (timeDiff > 3600) return { color: '#000000', label: 'BAĞLANTI KOPTU (1+ Saat)', shadow: 'rgba(0,0,0,0.8)' };
-  if (timeDiff > 600) return { color: '#64748b', label: 'SİNYAL YOK (Uyku Modu)', shadow: 'rgba(100,116,139,0.8)' };
+  if (timeDiff > 3600) return { color: '#1e1e1e', glow: '#555', label: 'BAĞLANTI KOPTU', sublabel: '1 saatten fazla sinyal yok', icon: '⚫' };
+  if (timeDiff > 600) return { color: '#64748b', glow: '#94a3b8', label: 'SİNYAL YOK', sublabel: 'Uyku modunda', icon: '🔘' };
 
-  if (v.speed > 0) return { color: '#3b82f6', label: 'HAREKET HALİNDE', shadow: 'rgba(59,130,246,0.8)' };
+  if (v.speed > 0) return { color: '#3b82f6', glow: '#60a5fa', label: 'HAREKET HALİNDE', sublabel: `${v.speed} km/s hızla ilerliyor`, icon: '🔵' };
   
-  if (v.speed === 0 && !v.ignition) return { color: '#ef4444', label: 'KONTAK KAPALI / PARK', shadow: 'rgba(239,68,68,0.8)' };
+  if (v.speed === 0 && !v.ignition) return { color: '#ef4444', glow: '#f87171', label: 'KONTAK KAPALI', sublabel: 'Park halinde, motor kapalı', icon: '🔴' };
   
   if (v.speed === 0 && v.ignition) {
-    if (!v.idle_since) return { color: '#3b82f6', label: 'DURAKLADI', shadow: 'rgba(59,130,246,0.8)' }; // Assume blue if just stopped
+    if (!v.idle_since) return { color: '#3b82f6', glow: '#60a5fa', label: 'DURAKLADI', sublabel: 'Az önce durdu', icon: '🔵' };
     const idleStart = new Date(v.idle_since);
     const idleTime = (now.getTime() - idleStart.getTime()) / 1000;
     
-    if (idleTime > 60) return { color: '#a855f7', label: 'RÖLANTİ (> 1 Dk)', shadow: 'rgba(168,85,247,0.8)' };
-    if (idleTime > 25) return { color: '#f97316', label: 'KISA BEKLEME (> 25sn)', shadow: 'rgba(249,115,22,0.8)' };
+    if (idleTime > 60) return { color: '#a855f7', glow: '#c084fc', label: 'RÖLANTİ', sublabel: `${Math.floor(idleTime/60)} dk ${Math.floor(idleTime%60)} sn kontak açık bekliyor`, icon: '🟣' };
+    if (idleTime > 25) return { color: '#f97316', glow: '#fb923c', label: 'KISA BEKLEME', sublabel: `${Math.floor(idleTime)} sn kontak açık bekliyor`, icon: '🟠' };
     
-    return { color: '#3b82f6', label: 'DURAKLADI', shadow: 'rgba(59,130,246,0.8)' }; // Still blue if idle < 25s
+    return { color: '#3b82f6', glow: '#60a5fa', label: 'DURAKLADI', sublabel: 'Az önce durdu', icon: '🔵' };
   }
 
-  return { color: '#64748b', label: 'SİNYAL YOK (Uyku Modu)', shadow: 'rgba(100,116,139,0.8)' };
+  return { color: '#64748b', glow: '#94a3b8', label: 'SİNYAL YOK', sublabel: 'Uyku modunda', icon: '🔘' };
 };
 
 // A custom PREMIUM ARVENTO-STYLE icon for vehicles
 const createPremiumVehicleIcon = (v: any) => {
-  const { color, shadow } = getVehicleStatusColor(v);
+  const { color } = getVehicleStatusColor(v);
   const plate = v.plate || v.imei || 'Bilinmiyor';
+  const shadow = `rgba(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)},0.8)`;
 
   return new L.DivIcon({
     className: 'bg-transparent',
@@ -55,7 +55,7 @@ const createPremiumVehicleIcon = (v: any) => {
         </div>
         <!-- Permanent Plate Label Below Marker -->
         <div class="mt-1 z-30 flex flex-col items-center whitespace-nowrap">
-          <span class="font-extrabold text-[11px] tracking-wider" style="color: ${color === '#000000' ? '#334155' : color}; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0px 2px 4px rgba(0,0,0,0.5);">
+          <span class="font-extrabold text-[11px] tracking-wider" style="color: ${color === '#1e1e1e' ? '#334155' : color}; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0px 2px 4px rgba(0,0,0,0.5);">
             ${plate}
           </span>
         </div>
@@ -116,7 +116,7 @@ function AutoZoom({ vehicles }: { vehicles: any[] }) {
         duration: 3, 
         easeLinearity: 0.25
       });
-      setHasZoomed(true); // Ensure it only happens once on initial load
+      setHasZoomed(true);
     }, 1000);
 
     return () => clearTimeout(timer);
@@ -135,6 +135,12 @@ function FocusController({ target }: { target: { lat: number; lng: number; zoom:
   return null;
 }
 
+// Click handler component inside MapContainer
+function MarkerClickHandler({ onVehicleClick }: { onVehicleClick: (v: any) => void }) {
+  // This component doesn't render anything, it's just a hook container
+  return null;
+}
+
 export default function LiveMap({ 
   vehicles = [], 
   focusTarget,
@@ -144,12 +150,33 @@ export default function LiveMap({
   focusTarget?: { lat: number; lng: number; zoom: number } | null,
   searchMarker?: { lat: number; lng: number; title: string } | null
 }) {
-  const [streetViewLoc, setStreetViewLoc] = useState<{lat: number, lng: number} | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);
+  const [showStreetView, setShowStreetView] = useState(false);
+
+  // Keep selected vehicle data fresh
+  useEffect(() => {
+    if (selectedVehicle) {
+      const updated = vehicles.find(v => v.imei === selectedVehicle.imei);
+      if (updated) setSelectedVehicle(updated);
+    }
+  }, [vehicles]);
+
+  const handleMarkerClick = useCallback((v: any) => {
+    setSelectedVehicle(v);
+    setShowStreetView(false);
+  }, []);
+
+  const closePanel = useCallback(() => {
+    setSelectedVehicle(null);
+    setShowStreetView(false);
+  }, []);
+
+  const status = selectedVehicle ? getVehicleStatusColor(selectedVehicle) : null;
 
   return (
     <div className="w-full h-full relative z-0">
       <MapContainer 
-        center={[39.0, 35.0]} // Initial Turkey Wide View
+        center={[39.0, 35.0]}
         zoom={6} 
         className="w-full h-full" 
         zoomControl={false}
@@ -166,65 +193,14 @@ export default function LiveMap({
         {vehicles.map(v => {
           if (!v.lat || !v.lng) return null;
           return (
-            <Marker key={v.id || v.imei} position={[v.lat, v.lng]} icon={createPremiumVehicleIcon(v)}>
-              <Popup className="premium-popup !p-0 overflow-hidden rounded-xl border border-white/20 bg-gradient-to-b from-[#0f172a] to-[#020617] backdrop-blur-xl shadow-2xl">
-                <div className="p-4 w-64">
-                  {/* Header */}
-                  <div className="font-black text-white tracking-widest text-lg border-b border-white/10 pb-3 mb-3 flex items-center justify-between">
-                    <span>{v.plate || v.imei}</span>
-                    <span className="text-[10px] bg-white/10 px-2 py-1 rounded-full text-slate-300 flex items-center gap-1 font-mono">
-                      <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: getVehicleStatusColor(v).color }}></span>
-                      {v.speed} km/s
-                    </span>
-                  </div>
-                  
-                  {/* Driver Info */}
-                  <div className="bg-white/5 rounded-lg p-3 mb-3 border border-white/5 shadow-inner">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="bg-blue-500/20 p-1.5 rounded-full">
-                        <User className="w-3.5 h-3.5 text-blue-400" />
-                      </div>
-                      <span className="text-sm font-semibold text-white truncate">
-                        {v.driver_name || 'Şoför Atanmadı'}
-                      </span>
-                    </div>
-                    {v.driver_phone ? (
-                      <a href={`tel:${v.driver_phone}`} className="flex items-center justify-center gap-2 w-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 py-2 rounded-md transition-colors text-xs font-bold uppercase tracking-wider group">
-                        <Phone className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-                        {v.driver_phone} - ARA
-                      </a>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2 w-full bg-slate-800/50 text-slate-500 border border-slate-700/50 py-2 rounded-md text-xs font-medium uppercase tracking-wider">
-                        Telefon Kayıtlı Değil
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Status */}
-                  <div className="space-y-2 mb-4 bg-black/20 p-3 rounded-lg border border-black/50">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-medium">Durum:</span>
-                      <span className="font-bold text-right leading-tight max-w-[120px]" style={{ color: getVehicleStatusColor(v).color }}>
-                        {getVehicleStatusColor(v).label}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-medium">Son Sinyal:</span>
-                      <span className="text-slate-200 font-mono bg-black/40 px-1.5 py-0.5 rounded border border-white/5">{new Date(v.last_update).toLocaleTimeString('tr-TR')}</span>
-                    </div>
-                  </div>
-
-                  {/* Street View Button */}
-                  <button 
-                    onClick={(e) => { e.preventDefault(); setStreetViewLoc({lat: v.lat, lng: v.lng}); }}
-                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 rounded-lg transition-all text-sm shadow-[0_0_15px_rgba(59,130,246,0.4)] hover:shadow-[0_0_25px_rgba(59,130,246,0.6)] group"
-                  >
-                    <Navigation className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
-                    Sokak Görünümünü Aç
-                  </button>
-                </div>
-              </Popup>
-            </Marker>
+            <Marker 
+              key={v.id || v.imei} 
+              position={[v.lat, v.lng]} 
+              icon={createPremiumVehicleIcon(v)}
+              eventHandlers={{
+                click: () => handleMarkerClick(v)
+              }}
+            />
           );
         })}
 
@@ -238,6 +214,392 @@ export default function LiveMap({
           </Marker>
         )}
       </MapContainer>
+
+      {/* ==================== PREMIUM VEHICLE INFO PANEL ==================== */}
+      {selectedVehicle && status && (
+        <div 
+          style={{
+            position: 'absolute',
+            top: '80px',
+            right: '20px',
+            width: '340px',
+            zIndex: 1000,
+            fontFamily: "'Inter', 'Segoe UI', sans-serif",
+            animation: 'slideIn 0.3s ease-out',
+          }}
+        >
+          {/* Main Card */}
+          <div style={{
+            background: 'linear-gradient(145deg, rgba(8,12,28,0.97), rgba(2,6,18,0.99))',
+            borderRadius: '20px',
+            border: `1px solid ${status.color}33`,
+            boxShadow: `0 25px 60px rgba(0,0,0,0.6), 0 0 40px ${status.color}15, inset 0 1px 0 rgba(255,255,255,0.05)`,
+            overflow: 'hidden',
+            backdropFilter: 'blur(30px)',
+          }}>
+            
+            {/* Top Glow Bar */}
+            <div style={{
+              height: '3px',
+              background: `linear-gradient(90deg, transparent, ${status.color}, transparent)`,
+              boxShadow: `0 0 20px ${status.color}80`,
+            }}></div>
+
+            {/* Header with Plate */}
+            <div style={{ padding: '20px 20px 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{
+                    fontSize: '22px',
+                    fontWeight: 900,
+                    color: '#fff',
+                    letterSpacing: '3px',
+                    textShadow: `0 0 30px ${status.color}40`,
+                  }}>
+                    {selectedVehicle.plate || selectedVehicle.imei}
+                  </div>
+                </div>
+                {/* Close button */}
+                <button 
+                  onClick={closePanel}
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '10px',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#94a3b8',
+                    fontSize: '18px',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Speed Gauge Display */}
+            <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              {/* Speed Circle */}
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                background: `conic-gradient(${status.color} ${Math.min(selectedVehicle.speed / 180 * 360, 360)}deg, rgba(255,255,255,0.05) 0deg)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: `0 0 25px ${status.color}30, inset 0 0 20px rgba(0,0,0,0.5)`,
+                position: 'relative',
+                flexShrink: 0,
+              }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(145deg, #0a0f1e, #060a18)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.8)',
+                }}>
+                  <span style={{
+                    fontSize: '20px',
+                    fontWeight: 900,
+                    color: status.color,
+                    lineHeight: 1,
+                    textShadow: `0 0 15px ${status.color}80`,
+                  }}>
+                    {selectedVehicle.speed}
+                  </span>
+                  <span style={{
+                    fontSize: '8px',
+                    color: '#64748b',
+                    fontWeight: 700,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                  }}>km/s</span>
+                </div>
+              </div>
+
+              {/* Status Info */}
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: `${status.color}15`,
+                  border: `1px solid ${status.color}30`,
+                  borderRadius: '10px',
+                  padding: '8px 14px',
+                  marginBottom: '8px',
+                }}>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: status.color,
+                    boxShadow: `0 0 10px ${status.color}`,
+                    animation: 'pulse 2s infinite',
+                  }}></div>
+                  <span style={{
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    color: status.color,
+                    letterSpacing: '1px',
+                  }}>
+                    {status.label}
+                  </span>
+                </div>
+                <div style={{
+                  fontSize: '11px',
+                  color: '#64748b',
+                  lineHeight: 1.4,
+                }}>
+                  {status.sublabel}
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{
+              height: '1px',
+              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)',
+              margin: '0 20px',
+            }}></div>
+
+            {/* Driver Section */}
+            <div style={{ padding: '16px 20px' }}>
+              <div style={{
+                fontSize: '9px',
+                fontWeight: 700,
+                color: '#475569',
+                letterSpacing: '2px',
+                textTransform: 'uppercase',
+                marginBottom: '10px',
+              }}>ŞOFÖR BİLGİSİ</div>
+              
+              <div style={{
+                background: 'rgba(255,255,255,0.03)',
+                borderRadius: '14px',
+                border: '1px solid rgba(255,255,255,0.05)',
+                padding: '14px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  {/* Avatar */}
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #1e3a5f, #0f2540)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '18px',
+                    border: '1px solid rgba(59,130,246,0.2)',
+                    boxShadow: '0 0 15px rgba(59,130,246,0.1)',
+                    flexShrink: 0,
+                  }}>
+                    👤
+                  </div>
+                  <div>
+                    <div style={{
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      color: '#e2e8f0',
+                    }}>
+                      {selectedVehicle.driver_name || 'Şoför Atanmadı'}
+                    </div>
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#475569',
+                      letterSpacing: '1px',
+                    }}>
+                      {selectedVehicle.driver_phone || 'Telefon kayıtlı değil'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Call Button */}
+                {selectedVehicle.driver_phone && (
+                  <a 
+                    href={`tel:${selectedVehicle.driver_phone}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #065f46, #064e3b)',
+                      border: '1px solid rgba(16,185,129,0.3)',
+                      color: '#34d399',
+                      fontWeight: 800,
+                      fontSize: '13px',
+                      letterSpacing: '1px',
+                      cursor: 'pointer',
+                      textDecoration: 'none',
+                      boxShadow: '0 0 20px rgba(16,185,129,0.15), inset 0 1px 0 rgba(255,255,255,0.05)',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 0 30px rgba(16,185,129,0.3)'; e.currentTarget.style.background = 'linear-gradient(135deg, #047857, #065f46)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 0 20px rgba(16,185,129,0.15)'; e.currentTarget.style.background = 'linear-gradient(135deg, #065f46, #064e3b)'; }}
+                  >
+                    📞 {selectedVehicle.driver_phone} — ARA
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Signal Info */}
+            <div style={{ padding: '0 20px 16px' }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'rgba(0,0,0,0.3)',
+                borderRadius: '10px',
+                padding: '10px 14px',
+                border: '1px solid rgba(255,255,255,0.03)',
+              }}>
+                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>Son Sinyal</span>
+                <span style={{
+                  fontSize: '12px',
+                  color: '#94a3b8',
+                  fontWeight: 700,
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  background: 'rgba(0,0,0,0.4)',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                }}>
+                  {new Date(selectedVehicle.last_update).toLocaleTimeString('tr-TR')}
+                </span>
+              </div>
+            </div>
+
+            {/* Street View Button */}
+            <div style={{ padding: '0 20px 20px' }}>
+              <button
+                onClick={() => setShowStreetView(!showStreetView)}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '14px',
+                  background: showStreetView
+                    ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' 
+                    : 'linear-gradient(135deg, #1e40af, #1d4ed8)',
+                  border: showStreetView 
+                    ? '1px solid rgba(167,139,250,0.3)' 
+                    : '1px solid rgba(96,165,250,0.3)',
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: '13px',
+                  letterSpacing: '1px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  boxShadow: showStreetView 
+                    ? '0 0 25px rgba(124,58,237,0.3)' 
+                    : '0 0 25px rgba(59,130,246,0.2)',
+                  transition: 'all 0.3s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+              >
+                🗺️ {showStreetView ? 'Sokak Görünümünü Kapat' : 'Sokak Görünümünü Aç'}
+              </button>
+            </div>
+
+            {/* Bottom Glow Bar */}
+            <div style={{
+              height: '2px',
+              background: `linear-gradient(90deg, transparent, ${status.color}40, transparent)`,
+            }}></div>
+          </div>
+
+          {/* Street View Panel (Slides down below the card) */}
+          {showStreetView && (
+            <div style={{
+              marginTop: '12px',
+              borderRadius: '20px',
+              overflow: 'hidden',
+              border: '1px solid rgba(124,58,237,0.3)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 30px rgba(124,58,237,0.15)',
+              animation: 'slideIn 0.3s ease-out',
+            }}>
+              {/* Street View Header */}
+              <div style={{
+                background: 'linear-gradient(135deg, #1a1035, #0f0a2e)',
+                padding: '12px 16px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1px solid rgba(124,58,237,0.2)',
+              }}>
+                <span style={{ color: '#c4b5fd', fontSize: '12px', fontWeight: 700, letterSpacing: '1px' }}>
+                  🗺️ SOKAK GÖRÜNÜMÜ
+                </span>
+                <button 
+                  onClick={() => setShowStreetView(false)}
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#94a3b8',
+                    fontSize: '14px',
+                  }}
+                >✕</button>
+              </div>
+              <iframe
+                title="Street View"
+                width="100%"
+                height="280"
+                frameBorder="0"
+                style={{ border: 0, display: 'block' }}
+                src={`https://www.google.com/maps/embed?pb=!4v0!6m8!1m7!1s!2m2!1d${selectedVehicle.lat}!2d${selectedVehicle.lng}!3f0!4f0!5f0.7820865974627469&layer=c&cbll=${selectedVehicle.lat},${selectedVehicle.lng}&cbp=11,0,0,0,0`}
+                allowFullScreen
+              ></iframe>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateX(30px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+        .leaflet-popup-content-wrapper { 
+          background: rgba(8,12,28,0.95) !important; 
+          border-radius: 12px !important; 
+          border: 1px solid rgba(255,255,255,0.1) !important;
+          box-shadow: 0 15px 40px rgba(0,0,0,0.5) !important;
+        }
+        .leaflet-popup-content { margin: 8px 12px !important; }
+        .leaflet-popup-tip { background: rgba(8,12,28,0.95) !important; }
+      `}</style>
     </div>
   );
 }
