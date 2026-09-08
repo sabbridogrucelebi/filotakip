@@ -29,6 +29,33 @@ app.get('/api/vehicles', async (req, res) => {
   }
 });
 
+// Debug: Store last 50 raw packets per IMEI
+const packetLog = new Map();
+
+function logRawPacket(imei, data) {
+  if (!packetLog.has(imei)) packetLog.set(imei, []);
+  const logs = packetLog.get(imei);
+  logs.unshift({
+    time: new Date().toISOString(),
+    hex: data.toString('hex'),
+    len: data.length,
+    proto: '0x' + data[3].toString(16).padStart(2, '0')
+  });
+  if (logs.length > 50) logs.pop();
+}
+
+app.get('/api/diagnostics/packets/:imei?', (req, res) => {
+  if (req.params.imei) {
+    res.json(packetLog.get(req.params.imei) || []);
+  } else {
+    const all = {};
+    for (const [imei, logs] of packetLog.entries()) {
+      all[imei] = logs;
+    }
+    res.json(all);
+  }
+});
+
 // Diagnostic: Check data intervals for each device (last 20 records)
 app.get('/api/diagnostics/intervals', async (req, res) => {
   try {
@@ -113,6 +140,9 @@ const server = net.createServer((socket) => {
   console.log(`[+] New device connected: ${socket.remoteAddress}:${socket.remotePort}`);
 
   socket.on('data', (data) => {
+    const currentImei = connectedDevices.get(socket) || 'Unknown';
+    logRawPacket(currentImei, data);
+
     if (data.length >= 10 && data.subarray(0, 2).equals(START_BIT) && data.subarray(data.length - 2).equals(STOP_BIT)) {
       const packetLength = data[2];
       const protocolNumber = data[3];
