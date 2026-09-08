@@ -17,13 +17,19 @@ const pool = mysql.createPool({
 pool.getConnection()
   .then(async connection => {
     console.log('MySQL veritabanına başarıyla bağlanıldı.');
+    // Migration: add idle_since column
     try {
       await connection.query("ALTER TABLE devices ADD COLUMN idle_since DATETIME NULL;");
-      console.log('Added idle_since column to devices table.');
+      console.log('Added idle_since column.');
     } catch (err) {
-      if (err.code !== 'ER_DUP_FIELDNAME') {
-        console.error('Error adding idle_since column:', err.message);
-      }
+      if (err.code !== 'ER_DUP_FIELDNAME') console.error('idle_since error:', err.message);
+    }
+    // Migration: add acc_on column (real ignition from Status packet)
+    try {
+      await connection.query("ALTER TABLE devices ADD COLUMN acc_on TINYINT(1) DEFAULT 0;");
+      console.log('Added acc_on column.');
+    } catch (err) {
+      if (err.code !== 'ER_DUP_FIELDNAME') console.error('acc_on error:', err.message);
     }
     connection.release();
   })
@@ -53,16 +59,22 @@ async function saveLocation(imei, locationData) {
     await pool.execute(query, values);
     
     // Update the last known position and status in devices table
+    // ACC (ignition) status comes from Status packets (0x13), stored as acc_on in devices table.
+    // We read the current acc_on value to decide idle logic.
     const status = locationData.speed > 0 ? 'moving' : 'stopped';
-    const isIdle = (locationData.speed === 0 && locationData.isGpsTrackingOn);
+    
+    // First, get current acc_on from the device
+    const [deviceRows] = await pool.execute('SELECT acc_on FROM devices WHERE imei = ?', [imei]);
+    const accOn = deviceRows.length > 0 ? !!deviceRows[0].acc_on : false;
     
     let updateQuery = `UPDATE devices SET last_update = NOW(), status = ?`;
     let queryParams = [status];
 
-    if (locationData.speed > 0 || !locationData.isGpsTrackingOn) {
+    if (locationData.speed > 0 || !accOn) {
+      // Moving or ignition off -> reset idle timer
       updateQuery += `, idle_since = NULL`;
-    } else if (isIdle) {
-      // Set idle_since to NOW() only if it's currently NULL
+    } else if (locationData.speed === 0 && accOn) {
+      // Stopped but ignition on -> start/continue idle timer
       updateQuery += `, idle_since = COALESCE(idle_since, NOW())`;
     }
 
@@ -96,8 +108,8 @@ async function verifyOrRegisterDevice(imei) {
 async function getLatestVehiclePositions() {
   const query = `
     SELECT 
-      d.id, d.imei, d.plate_number as plate, d.status, d.idle_since,
-      p.latitude as lat, p.longitude as lng, p.speed, p.course, p.device_time as last_update, p.ignition
+      d.id, d.imei, d.plate_number as plate, d.status, d.idle_since, d.acc_on as ignition,
+      p.latitude as lat, p.longitude as lng, p.speed, p.course, p.device_time as last_update
     FROM devices d
     LEFT JOIN (
       SELECT p1.*
@@ -164,8 +176,20 @@ module.exports = {
   getLatestVehiclePositions,
   getLastPositionByImei,
   updateDeviceMetadata,
+  updateDeviceAcc,
   cleanGhostDevices
 };
+
+async function updateDeviceAcc(imei, accOn) {
+  try {
+    await pool.execute(
+      `UPDATE devices SET acc_on = ? WHERE imei = ?`,
+      [accOn ? 1 : 0, imei]
+    );
+  } catch (err) {
+    console.error('Error updating ACC status:', err);
+  }
+}
 
 async function cleanGhostDevices() {
   try {

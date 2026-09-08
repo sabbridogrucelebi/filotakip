@@ -147,6 +147,10 @@ async function handleLocationPacket(socket, data) {
     // Save to DB
     await db.saveLocation(imei, locationData);
     
+    // Get current ACC status from device table
+    const accStatus = await db.pool.execute('SELECT acc_on FROM devices WHERE imei = ?', [imei]);
+    const accOn = accStatus[0].length > 0 ? !!accStatus[0][0].acc_on : false;
+    
     // Construct real-time payload
     const payload = {
       imei: imei,
@@ -155,7 +159,7 @@ async function handleLocationPacket(socket, data) {
       speed: locationData.speed,
       course: locationData.course,
       status: locationData.speed > 0 ? 'moving' : 'stopped',
-      ignition: locationData.isGpsTrackingOn,
+      ignition: accOn,
       last_update: new Date().toISOString()
     };
     
@@ -168,8 +172,44 @@ async function handleLocationPacket(socket, data) {
   }
 }
 
-function handleStatusPacket(socket, data) {
-  // Logic to parse status, battery, signal strength
+async function handleStatusPacket(socket, data) {
+  try {
+    const imei = connectedDevices.get(socket);
+    if (!imei) return;
+
+    // GT06 Status Packet (0x13) format:
+    // [0-1] Start bits, [2] Length, [3] Protocol (0x13)
+    // [4] Terminal Information, [5] Voltage Level, [6] GSM Signal, [7-8] Alarm/Language
+    const terminalInfo = data[4];
+    
+    // Bit 1 of terminal info = ACC status (0=OFF, 1=ON)
+    const accOn = (terminalInfo & 0x02) !== 0;
+    // Bit 0 = Oil/Electric connected
+    const oilElectric = (terminalInfo & 0x01) !== 0;
+    
+    console.log(`[TCP] Status from ${imei}: ACC=${accOn ? 'ON' : 'OFF'}, Oil=${oilElectric ? 'ON' : 'OFF'}`);
+    
+    // Save ACC status to devices table
+    await db.updateDeviceAcc(imei, accOn);
+    
+    // Emit to dashboard
+    io.emit('device_status', { imei, acc_on: accOn });
+
+    // Send ACK response
+    const serialNo = data.subarray(data.length - 6, data.length - 4);
+    const response = Buffer.alloc(10);
+    response[0] = 0x78; response[1] = 0x78;
+    response[2] = 0x05; response[3] = 0x13;
+    response[4] = serialNo[0]; response[5] = serialNo[1];
+    const crcData = response.subarray(2, 6);
+    const calculatedCrc = crc16(crcData);
+    response[6] = (calculatedCrc >> 8) & 0xFF;
+    response[7] = calculatedCrc & 0xFF;
+    response[8] = 0x0D; response[9] = 0x0A;
+    socket.write(response);
+  } catch (err) {
+    console.error('Error handling status packet:', err.message);
+  }
 }
 
 // Start both servers
