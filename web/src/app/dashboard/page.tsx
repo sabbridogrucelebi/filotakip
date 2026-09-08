@@ -165,6 +165,26 @@ export default function DashboardPage() {
       });
     });
 
+    socket.on('device_status', (statusUpdate) => {
+      setVehicles(prevVehicles => {
+        const index = prevVehicles.findIndex(v => v.imei === statusUpdate.imei);
+        if (index > -1) {
+          const updated = [...prevVehicles];
+          const newV = { ...updated[index], ignition: statusUpdate.acc_on };
+          
+          if (newV.speed > 0 || !newV.ignition) {
+            newV.idle_since = null;
+          } else if (newV.speed === 0 && newV.ignition && !newV.idle_since) {
+            newV.idle_since = new Date().toISOString();
+          }
+          
+          updated[index] = newV;
+          return updated;
+        }
+        return prevVehicles;
+      });
+    });
+
     // Force re-render every 5 seconds so time-based colors (Orange > 25s, Purple > 60s) update without waiting for new packets
     const interval = setInterval(() => {
       setVehicles((v: any[]) => [...v]);
