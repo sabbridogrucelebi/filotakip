@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { Phone, Navigation, User, Map as MapIcon, X } from 'lucide-react';
 
 // Fix leaflet default icon issue in Next.js
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -17,25 +18,25 @@ const getVehicleStatusColor = (v: any) => {
   const lastUpdate = new Date(v.last_update);
   const timeDiff = (now.getTime() - lastUpdate.getTime()) / 1000; // in seconds
 
-  if (timeDiff > 3600) return { color: '#000000', label: 'Bağlantı Kopuk', shadow: 'rgba(0,0,0,0.8)' };
-  if (timeDiff > 600) return { color: '#64748b', label: 'Sinyal Yok', shadow: 'rgba(100,116,139,0.8)' };
+  if (timeDiff > 3600) return { color: '#000000', label: 'BAĞLANTI KOPTU (1+ Saat)', shadow: 'rgba(0,0,0,0.8)' };
+  if (timeDiff > 600) return { color: '#64748b', label: 'SİNYAL YOK (Uyku Modu)', shadow: 'rgba(100,116,139,0.8)' };
 
-  if (v.speed > 0) return { color: '#3b82f6', label: 'Hareket Halinde', shadow: 'rgba(59,130,246,0.8)' };
+  if (v.speed > 0) return { color: '#3b82f6', label: 'HAREKET HALİNDE', shadow: 'rgba(59,130,246,0.8)' };
   
-  if (v.speed === 0 && !v.ignition) return { color: '#ef4444', label: 'Duruyor', shadow: 'rgba(239,68,68,0.8)' };
+  if (v.speed === 0 && !v.ignition) return { color: '#ef4444', label: 'KONTAK KAPALI / PARK', shadow: 'rgba(239,68,68,0.8)' };
   
   if (v.speed === 0 && v.ignition) {
-    if (!v.idle_since) return { color: '#3b82f6', label: 'Hareket Halinde', shadow: 'rgba(59,130,246,0.8)' };
+    if (!v.idle_since) return { color: '#3b82f6', label: 'DURAKLADI', shadow: 'rgba(59,130,246,0.8)' }; // Assume blue if just stopped
     const idleStart = new Date(v.idle_since);
     const idleTime = (now.getTime() - idleStart.getTime()) / 1000;
     
-    if (idleTime > 60) return { color: '#a855f7', label: 'Kontak Açık Bekliyor', shadow: 'rgba(168,85,247,0.8)' };
-    if (idleTime > 25) return { color: '#f97316', label: 'Rölantide', shadow: 'rgba(249,115,22,0.8)' };
+    if (idleTime > 60) return { color: '#a855f7', label: 'RÖLANTİ (> 1 Dk)', shadow: 'rgba(168,85,247,0.8)' };
+    if (idleTime > 25) return { color: '#f97316', label: 'KISA BEKLEME (> 25sn)', shadow: 'rgba(249,115,22,0.8)' };
     
-    return { color: '#3b82f6', label: 'Hareket Halinde', shadow: 'rgba(59,130,246,0.8)' };
+    return { color: '#3b82f6', label: 'DURAKLADI', shadow: 'rgba(59,130,246,0.8)' }; // Still blue if idle < 25s
   }
 
-  return { color: '#64748b', label: 'Sinyal Yok', shadow: 'rgba(100,116,139,0.8)' };
+  return { color: '#64748b', label: 'SİNYAL YOK (Uyku Modu)', shadow: 'rgba(100,116,139,0.8)' };
 };
 
 // A custom PREMIUM ARVENTO-STYLE icon for vehicles
@@ -143,6 +144,8 @@ export default function LiveMap({
   focusTarget?: { lat: number; lng: number; zoom: number } | null,
   searchMarker?: { lat: number; lng: number; title: string } | null
 }) {
+  const [streetViewLoc, setStreetViewLoc] = useState<{lat: number, lng: number} | null>(null);
+
   return (
     <div className="w-full h-full relative z-0">
       <MapContainer 
@@ -164,83 +167,61 @@ export default function LiveMap({
           if (!v.lat || !v.lng) return null;
           return (
             <Marker key={v.id || v.imei} position={[v.lat, v.lng]} icon={createPremiumVehicleIcon(v)}>
-              <Popup className="premium-vehicle-popup" maxWidth={280} minWidth={260}>
-                <div className="bg-gradient-to-br from-[#0c1425] via-[#111c32] to-[#0a1628] rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl" style={{ margin: '-14px -20px -14px -20px' }}>
-                  
-                  {/* Header: Plate + Status Badge */}
-                  <div className="px-4 pt-4 pb-3 border-b border-white/[0.06]">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ backgroundColor: getVehicleStatusColor(v).color, boxShadow: `0 0 8px ${getVehicleStatusColor(v).shadow}` }}></div>
-                        <span className="text-white font-black text-base tracking-[0.12em] drop-shadow-lg">{v.plate || v.imei}</span>
-                      </div>
-                      <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border" style={{ 
-                        color: getVehicleStatusColor(v).color, 
-                        borderColor: getVehicleStatusColor(v).color + '44',
-                        backgroundColor: getVehicleStatusColor(v).color + '18'
-                      }}>
-                        {getVehicleStatusColor(v).label}
-                      </span>
-                    </div>
-                    {v.vehicle_model && v.vehicle_model !== 'Unknown' && (
-                      <p className="text-slate-500 text-[10px] mt-1 ml-[18px] tracking-wide">{v.vehicle_model}</p>
-                    )}
+              <Popup className="premium-popup !p-0 overflow-hidden rounded-xl border border-white/20 bg-gradient-to-b from-[#0f172a] to-[#020617] backdrop-blur-xl shadow-2xl">
+                <div className="p-4 w-64">
+                  {/* Header */}
+                  <div className="font-black text-white tracking-widest text-lg border-b border-white/10 pb-3 mb-3 flex items-center justify-between">
+                    <span>{v.plate || v.imei}</span>
+                    <span className="text-[10px] bg-white/10 px-2 py-1 rounded-full text-slate-300 flex items-center gap-1 font-mono">
+                      <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: getVehicleStatusColor(v).color }}></span>
+                      {v.speed} km/s
+                    </span>
                   </div>
-
+                  
                   {/* Driver Info */}
-                  <div className="px-4 py-2.5 border-b border-white/[0.06]">
-                    <div className="flex items-center gap-2 mb-1">
-                      <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                      <span className="text-slate-300 text-xs font-medium">
-                        {v.driver_name || 'Şoför atanmadı'}
+                  <div className="bg-white/5 rounded-lg p-3 mb-3 border border-white/5 shadow-inner">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="bg-blue-500/20 p-1.5 rounded-full">
+                        <User className="w-3.5 h-3.5 text-blue-400" />
+                      </div>
+                      <span className="text-sm font-semibold text-white truncate">
+                        {v.driver_name || 'Şoför Atanmadı'}
                       </span>
                     </div>
                     {v.driver_phone ? (
-                      <a href={`tel:${v.driver_phone}`} className="flex items-center gap-2 group cursor-pointer mt-1 no-underline">
-                        <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                        <span className="text-emerald-400 text-xs font-mono group-hover:text-emerald-300 transition-colors">{v.driver_phone}</span>
-                        <span className="ml-auto bg-emerald-500/20 text-emerald-400 text-[8px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-emerald-500/30 group-hover:bg-emerald-500/30 transition-colors">ARA</span>
+                      <a href={`tel:${v.driver_phone}`} className="flex items-center justify-center gap-2 w-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 py-2 rounded-md transition-colors text-xs font-bold uppercase tracking-wider group">
+                        <Phone className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                        {v.driver_phone} - ARA
                       </a>
                     ) : (
-                      <p className="text-slate-600 text-[10px] ml-[22px]">Telefon girilmedi</p>
+                      <div className="flex items-center justify-center gap-2 w-full bg-slate-800/50 text-slate-500 border border-slate-700/50 py-2 rounded-md text-xs font-medium uppercase tracking-wider">
+                        Telefon Kayıtlı Değil
+                      </div>
                     )}
                   </div>
 
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-3 gap-px bg-white/[0.04]">
-                    <div className="bg-[#0f1a2e] px-3 py-2.5 text-center">
-                      <p className="text-slate-500 text-[8px] uppercase tracking-widest font-bold mb-0.5">Hız</p>
-                      <p className="text-white font-mono text-sm font-black">{v.speed}<span className="text-slate-500 text-[8px] ml-0.5">km/s</span></p>
+                  {/* Status */}
+                  <div className="space-y-2 mb-4 bg-black/20 p-3 rounded-lg border border-black/50">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-medium">Durum:</span>
+                      <span className="font-bold text-right leading-tight max-w-[120px]" style={{ color: getVehicleStatusColor(v).color }}>
+                        {getVehicleStatusColor(v).label}
+                      </span>
                     </div>
-                    <div className="bg-[#0f1a2e] px-3 py-2.5 text-center">
-                      <p className="text-slate-500 text-[8px] uppercase tracking-widest font-bold mb-0.5">Yön</p>
-                      <p className="text-white font-mono text-sm font-black">{v.course || 0}°</p>
-                    </div>
-                    <div className="bg-[#0f1a2e] px-3 py-2.5 text-center">
-                      <p className="text-slate-500 text-[8px] uppercase tracking-widest font-bold mb-0.5">Sinyal</p>
-                      <p className="text-slate-200 font-mono text-[10px] font-bold">{v.last_update ? new Date(v.last_update).toLocaleTimeString('tr-TR') : '-'}</p>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-medium">Son Sinyal:</span>
+                      <span className="text-slate-200 font-mono bg-black/40 px-1.5 py-0.5 rounded border border-white/5">{new Date(v.last_update).toLocaleTimeString('tr-TR')}</span>
                     </div>
                   </div>
 
-                  {/* Footer: Street View Button */}
-                  <div className="px-4 py-2.5 border-t border-white/[0.06]">
-                    <a 
-                      href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${v.lat},${v.lng}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 w-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/40 rounded-lg py-1.5 transition-all cursor-pointer no-underline group"
-                    >
-                      <svg className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C8.14 2 5 5.14 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.86-3.14-7-7-7zm0 2a2 2 0 110 4 2 2 0 010-4zm-1.5 5h3v1.5H14l-2 4.5-2-4.5h1.5V9z"/>
-                      </svg>
-                      <span className="text-amber-400 text-[10px] font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors">Sokak Görünümü</span>
-                    </a>
-                  </div>
-
+                  {/* Street View Button */}
+                  <button 
+                    onClick={(e) => { e.preventDefault(); setStreetViewLoc({lat: v.lat, lng: v.lng}); }}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 rounded-lg transition-all text-sm shadow-[0_0_15px_rgba(59,130,246,0.4)] hover:shadow-[0_0_25px_rgba(59,130,246,0.6)] group"
+                  >
+                    <Navigation className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                    Sokak Görünümünü Aç
+                  </button>
                 </div>
               </Popup>
             </Marker>
