@@ -106,20 +106,16 @@ const PROTOCOLS = {
   LOCATION: 0x12,
   STATUS: 0x13,
   ALARM: 0x16,
+  LOCATION_EXT: 0x22
 };
 
 const server = net.createServer((socket) => {
   console.log(`[+] New device connected: ${socket.remoteAddress}:${socket.remotePort}`);
 
   socket.on('data', (data) => {
-    // console.log(`[Data Received] (${data.length} bytes):`, data.toString('hex'));
-
     if (data.length >= 10 && data.subarray(0, 2).equals(START_BIT) && data.subarray(data.length - 2).equals(STOP_BIT)) {
       const packetLength = data[2];
       const protocolNumber = data[3];
-
-      const imei = connectedDevices.get(socket) || 'unknown';
-      console.log(`[TCP] 📦 Packet from ${imei}: Protocol=0x${protocolNumber.toString(16).padStart(2,'0')} Length=${packetLength} Raw=${data.toString('hex').substring(0,40)}...`);
 
       switch (protocolNumber) {
         case PROTOCOLS.LOGIN:
@@ -131,26 +127,14 @@ const server = net.createServer((socket) => {
         case PROTOCOLS.STATUS:
           handleStatusPacket(socket, data);
           break;
-        case PROTOCOLS.ALARM: // 0x16 - Alarm packet (may also contain ACC info)
-          handleStatusPacket(socket, data); // Parse same way as status
-          break;
-        case 0x23: // Heartbeat
-          // Send ACK for heartbeat
-          const serialNo = data.subarray(data.length - 6, data.length - 4);
-          const response = Buffer.alloc(10);
-          response[0] = 0x78; response[1] = 0x78;
-          response[2] = 0x05; response[3] = 0x23;
-          response[4] = serialNo[0]; response[5] = serialNo[1];
-          const crcData = response.subarray(2, 6);
-          const calculatedCrc = crc16(crcData);
-          response[6] = (calculatedCrc >> 8) & 0xFF;
-          response[7] = calculatedCrc & 0xFF;
-          response[8] = 0x0D; response[9] = 0x0A;
-          socket.write(response);
-          console.log(`[TCP] 💓 Heartbeat ACK sent to ${imei}`);
+        case PROTOCOLS.LOCATION_EXT:
+          // Often used by GT06 for Location + Status
+          handleLocationPacket(socket, data); // Fallback to parse just the location part for now
           break;
         default:
-          console.log(`[TCP] ❓ Unknown protocol 0x${protocolNumber.toString(16)} from ${imei}`);
+          const imei = connectedDevices.get(socket) || 'Unknown';
+          console.log(`[TCP] Unhandled packet 0x${protocolNumber.toString(16)} from ${imei}:`, data.toString('hex'));
+          break;
       }
     }
   });
@@ -239,28 +223,22 @@ async function handleStatusPacket(socket, data) {
     const imei = connectedDevices.get(socket);
     if (!imei) return;
 
-    // GT06N Status Packet (0x13) format:
-    // [0-1] Start bits (0x78 0x78), [2] Length, [3] Protocol (0x13)
+    // GT06 Status Packet (0x13) format:
+    // [0-1] Start bits, [2] Length, [3] Protocol (0x13)
     // [4] Terminal Information, [5] Voltage Level, [6] GSM Signal, [7-8] Alarm/Language
     const terminalInfo = data[4];
     
-    // Concox GT06N Terminal Information byte layout:
-    // Bit 0: Oil/Electric (0=Normal, 1=Disconnected)
-    // Bit 1: GPS Tracking (0=OFF, 1=ON)
-    // Bit 2-4: Alarm type
-    // Bit 5: Charging (0=Not charging, 1=Charging)
-    // Bit 6: ACC/Ignition (0=OFF, 1=ON) ← THIS IS THE CORRECT BIT
-    // Bit 7: Defense (0=OFF, 1=ON)
-    const accOn = (terminalInfo & 0x40) !== 0;  // Bit 6 = ACC
-    const gpsTracking = (terminalInfo & 0x02) !== 0;  // Bit 1 = GPS
-    const charging = (terminalInfo & 0x20) !== 0;  // Bit 5 = Charging
+    // Bit 1 of terminal info = ACC status (0=OFF, 1=ON)
+    const accOn = (terminalInfo & 0x02) !== 0;
+    // Bit 0 = Oil/Electric connected
+    const oilElectric = (terminalInfo & 0x01) !== 0;
     
-    console.log(`[TCP] ⚡ STATUS from ${imei}: RAW=0x${terminalInfo.toString(16).padStart(2,'0')} (binary: ${terminalInfo.toString(2).padStart(8,'0')}) ACC=${accOn ? '✅ ON' : '❌ OFF'} GPS=${gpsTracking ? 'ON' : 'OFF'} Charging=${charging ? 'YES' : 'NO'}`);
+    console.log(`[TCP] Status from ${imei}: ACC=${accOn ? 'ON' : 'OFF'}, Oil=${oilElectric ? 'ON' : 'OFF'}`);
     
     // Save ACC status to devices table
     await db.updateDeviceAcc(imei, accOn);
     
-    // Emit to dashboard IMMEDIATELY for instant UI update
+    // Emit to dashboard
     io.emit('device_status', { imei, acc_on: accOn });
 
     // Send ACK response
