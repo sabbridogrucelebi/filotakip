@@ -127,9 +127,24 @@ const server = net.createServer((socket) => {
         case PROTOCOLS.STATUS:
           handleStatusPacket(socket, data);
           break;
+        case PROTOCOLS.ALARM:
         case PROTOCOLS.LOCATION_EXT:
-          // Often used by GT06 for Location + Status
-          handleLocationPacket(socket, data); // Fallback to parse just the location part for now
+          // These packets start with normal location data, so parse it
+          handleLocationPacket(socket, data);
+          
+          // Then extract Terminal Information for ACC status
+          // Format usually ends with: TerminalInfo(1) + Voltage(1) + GSM(1) + AlarmLang(2) + Serial(2) + Error(2) + Stop(2)
+          // Which means TerminalInfo is 11 bytes from the end.
+          if (data.length >= 15) {
+             const terminalInfo = data[data.length - 11];
+             const accOn = (terminalInfo & 0x02) !== 0;
+             const imei = connectedDevices.get(socket);
+             if (imei) {
+                console.log(`[TCP] ACC Extracted from 0x${protocolNumber.toString(16)} for ${imei}: ACC=${accOn ? 'ON' : 'OFF'}`);
+                db.updateDeviceAcc(imei, accOn).catch(e => console.error(e));
+                io.emit('device_status', { imei, acc_on: accOn });
+             }
+          }
           break;
         default:
           const imei = connectedDevices.get(socket) || 'Unknown';

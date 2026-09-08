@@ -165,31 +165,6 @@ export default function DashboardPage() {
       });
     });
 
-    // Listen for ACC/Ignition status changes (from Status packet 0x13)
-    socket.on('device_status', (statusData) => {
-      console.log(`[WS] ACC Update: ${statusData.imei} → ${statusData.acc_on ? 'KONTAK AÇIK ✅' : 'KONTAK KAPALI ❌'}`);
-      setVehicles(prevVehicles => {
-        const index = prevVehicles.findIndex(v => v.imei === statusData.imei);
-        if (index > -1) {
-          const updated = [...prevVehicles];
-          const newV = { ...updated[index], ignition: statusData.acc_on };
-          
-          // If ignition just turned OFF, clear idle timer
-          if (!statusData.acc_on) {
-            newV.idle_since = null;
-          }
-          // If ignition just turned ON and speed is 0, start idle timer
-          else if (statusData.acc_on && newV.speed === 0 && !newV.idle_since) {
-            newV.idle_since = new Date().toISOString();
-          }
-          
-          updated[index] = newV;
-          return updated;
-        }
-        return prevVehicles;
-      });
-    });
-
     // Force re-render every 5 seconds so time-based colors (Orange > 25s, Purple > 60s) update without waiting for new packets
     const interval = setInterval(() => {
       setVehicles((v: any[]) => [...v]);
