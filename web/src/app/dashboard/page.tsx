@@ -207,10 +207,10 @@ export default function DashboardPage() {
 
   // KPI data for bottom cards (Using Premium Lordicon Animations)
   const kpiItems = [
-    { title: 'TOPLAM ARAÇ', value: totalVehicles, icon: <lord-icon src="https://cdn.lordicon.com/pithnlch.json" trigger="loop" delay="1000" style={{ width: '32px', height: '32px' }} colors="primary:#3b82f6"></lord-icon>, accent: '#3b82f6' },
-    { title: 'HAREKET HALİNDE', value: movingVehicles, icon: <lord-icon src="https://cdn.lordicon.com/zpxybbhl.json" trigger="loop" delay="1500" style={{ width: '32px', height: '32px' }} colors="primary:#10b981"></lord-icon>, accent: '#10b981' },
-    { title: 'HIZ İHLALİ / ALARM', value: speedingAlarms, icon: <lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" delay="500" style={{ width: '32px', height: '32px' }} colors="primary:#ef4444"></lord-icon>, accent: '#ef4444' },
-    { title: 'SİSTEM SAĞLIĞI', value: serverStatus, icon: <lord-icon src="https://cdn.lordicon.com/nocovwne.json" trigger="loop" delay="2000" style={{ width: '32px', height: '32px' }} colors="primary:#8b5cf6"></lord-icon>, accent: '#8b5cf6' },
+    { title: 'TOPLAM ARAÇ', value: totalVehicles, icon: React.createElement('lord-icon', { src: "https://cdn.lordicon.com/pithnlch.json", trigger: "loop", delay: "1000", style: { width: '32px', height: '32px' }, colors: "primary:#3b82f6" }), accent: '#3b82f6' },
+    { title: 'HAREKET HALİNDE', value: movingVehicles, icon: React.createElement('lord-icon', { src: "https://cdn.lordicon.com/zpxybbhl.json", trigger: "loop", delay: "1500", style: { width: '32px', height: '32px' }, colors: "primary:#10b981" }), accent: '#10b981' },
+    { title: 'HIZ İHLALİ / ALARM', value: speedingAlarms, icon: React.createElement('lord-icon', { src: "https://cdn.lordicon.com/tdrtiskw.json", trigger: "loop", delay: "500", style: { width: '32px', height: '32px' }, colors: "primary:#ef4444" }), accent: '#ef4444' },
+    { title: 'SİSTEM SAĞLIĞI', value: serverStatus, icon: React.createElement('lord-icon', { src: "https://cdn.lordicon.com/nocovwne.json", trigger: "loop", delay: "2000", style: { width: '32px', height: '32px' }, colors: "primary:#8b5cf6" }), accent: '#8b5cf6' },
   ];
 
   return (
