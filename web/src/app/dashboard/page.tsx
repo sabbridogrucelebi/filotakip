@@ -10,14 +10,7 @@ const LiveMap = dynamic(() => import('@/components/dashboard/LiveMap'), { ssr: f
 
 import { ChevronUp, ChevronDown } from 'lucide-react';
 
-// Allow lord-icon as a custom element in TypeScript
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      'lord-icon': any;
-    }
-  }
-}
+// Global declaration removed due to conflict with types/lord-icon.d.ts
 
 export default function DashboardPage() {
   const [showCards, setShowCards] = useState(true);
