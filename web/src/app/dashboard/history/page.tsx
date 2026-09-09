@@ -175,7 +175,7 @@ export default function HistoryPage() {
             {/* Stops List */}
             {history.stops.length > 0 && (
               <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4">
-                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Duraklamalar (>2 dk)</h3>
+                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Duraklamalar (&gt;2 dk)</h3>
                  <div className="space-y-3">
                    {history.stops.map((stop: any, idx: number) => (
                      <div key={idx} className="flex items-start gap-3 border-l-2 border-slate-700 pl-3">
