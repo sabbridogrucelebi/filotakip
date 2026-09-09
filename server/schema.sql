@@ -2,6 +2,30 @@
 -- Tüm tablolar: users, devices, positions, alarms, geofences, geofence_events, 
 -- trips, vehicle_groups, maintenance, notifications, sessions, poi, command_logs
 
+-- Güvenli Sütun Güncelleme Prosedürü (Var olan tabloları silmeden günceller)
+DROP PROCEDURE IF EXISTS AddColumnIfNotExists;
+DELIMITER //
+CREATE PROCEDURE AddColumnIfNotExists(
+    IN dbName VARCHAR(255),
+    IN tableName VARCHAR(255),
+    IN colName VARCHAR(255),
+    IN colDef VARCHAR(255)
+)
+BEGIN
+    IF NOT EXISTS (
+        SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = dbName
+          AND TABLE_NAME = tableName
+          AND COLUMN_NAME = colName
+    ) THEN
+        SET @ddl = CONCAT('ALTER TABLE ', tableName, ' ADD COLUMN ', colName, ' ', colDef);
+        PREPARE stmt FROM @ddl;
+        EXECUTE stmt;
+        DEALLOCATE PREPARE stmt;
+    END IF;
+END //
+DELIMITER ;
+
 -- 1. Kullanıcılar Tablosu
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -16,6 +40,12 @@ CREATE TABLE IF NOT EXISTS users (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_login DATETIME
 );
+
+-- Eski tablo varsa yeni sütunları ekle
+CALL AddColumnIfNotExists(DATABASE(), 'users', 'full_name', 'VARCHAR(100)');
+CALL AddColumnIfNotExists(DATABASE(), 'users', 'phone', 'VARCHAR(20)');
+CALL AddColumnIfNotExists(DATABASE(), 'users', 'avatar_url', 'VARCHAR(255)');
+CALL AddColumnIfNotExists(DATABASE(), 'users', 'is_active', 'BOOLEAN DEFAULT TRUE');
 
 -- 2. Oturum Yönetimi (JWT Refresh Tokens)
 CREATE TABLE IF NOT EXISTS sessions (
@@ -66,6 +96,12 @@ CREATE TABLE IF NOT EXISTS devices (
     FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (group_id) REFERENCES vehicle_groups(id) ON DELETE SET NULL
 );
+CALL AddColumnIfNotExists(DATABASE(), 'devices', 'vehicle_type', 'VARCHAR(20) DEFAULT "car"');
+CALL AddColumnIfNotExists(DATABASE(), 'devices', 'speed_limit', 'INT DEFAULT 120');
+CALL AddColumnIfNotExists(DATABASE(), 'devices', 'idle_since', 'DATETIME');
+CALL AddColumnIfNotExists(DATABASE(), 'devices', 'acc_on', 'TINYINT(1) DEFAULT 0');
+CALL AddColumnIfNotExists(DATABASE(), 'devices', 'fuel_consumption', 'FLOAT DEFAULT 8.0');
+CALL AddColumnIfNotExists(DATABASE(), 'devices', 'group_id', 'INT');
 
 -- 5. Konum Geçmişi Tablosu
 CREATE TABLE IF NOT EXISTS positions (
@@ -110,6 +146,16 @@ CREATE TABLE IF NOT EXISTS alarms (
     INDEX idx_alarms_device_time (device_imei, event_time),
     INDEX idx_alarms_unread (is_read, created_at)
 );
+
+CALL AddColumnIfNotExists(DATABASE(), 'alarms', 'severity', 'VARCHAR(20) DEFAULT "warning"');
+CALL AddColumnIfNotExists(DATABASE(), 'alarms', 'title', 'VARCHAR(200)');
+CALL AddColumnIfNotExists(DATABASE(), 'alarms', 'description', 'TEXT');
+CALL AddColumnIfNotExists(DATABASE(), 'alarms', 'speed', 'FLOAT');
+CALL AddColumnIfNotExists(DATABASE(), 'alarms', 'extra_data', 'JSON');
+CALL AddColumnIfNotExists(DATABASE(), 'alarms', 'is_read', 'BOOLEAN DEFAULT FALSE');
+CALL AddColumnIfNotExists(DATABASE(), 'alarms', 'is_resolved', 'BOOLEAN DEFAULT FALSE');
+CALL AddColumnIfNotExists(DATABASE(), 'alarms', 'resolved_by', 'INT');
+CALL AddColumnIfNotExists(DATABASE(), 'alarms', 'resolved_at', 'DATETIME');
 
 -- 7. Geofence (Sanal Çit) Tanımları
 CREATE TABLE IF NOT EXISTS geofences (
