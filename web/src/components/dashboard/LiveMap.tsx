@@ -89,7 +89,9 @@ const createPremiumVehicleIcon = (v: any) => {
     className: 'bg-transparent',
     html: `
       <div style="display:flex; flex-direction:column; align-items:center; margin-top:${isMoving ? '-12px' : '-9px'};">
-        ${markerSvg}
+        <div class="premium-icon-3d" style="display: flex;">
+          ${markerSvg}
+        </div>
         <span style="
           margin-top: 2px;
           font-size: 10.5px;
@@ -289,7 +291,7 @@ export default function LiveMap({
           }}
           title="Harita Katmanı"
         >
-          🗂️
+          <span className="premium-icon-3d drop-shadow-md" style={{ display: 'inline-block' }}>🗂️</span>
         </button>
 
         {showLayerMenu && (

@@ -104,3 +104,45 @@ input:-webkit-autofill:active {
 .leaflet-bar a:hover {
   background-color: #1e293b !important;
 }
+
+/* Premium 3D Animated Icons (Global) */
+@keyframes premium-3d-float {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4)) drop-shadow(0 1px 2px rgba(255, 255, 255, 0.15));
+  }
+  50% {
+    transform: translateY(-4px) rotate(2deg);
+    filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.6)) drop-shadow(0 5px 6px rgba(255, 255, 255, 0.2));
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4)) drop-shadow(0 1px 2px rgba(255, 255, 255, 0.15));
+  }
+}
+
+/* Apply to all Lucide icons and explicitly tagged icons */
+.lucide, .premium-icon-3d {
+  animation: premium-3d-float 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  transform-style: preserve-3d;
+  will-change: transform, filter;
+  transition: all 0.3s ease;
+}
+
+/* Stagger animations so they don't all move exactly at the same time, giving an organic feel */
+.lucide:nth-child(even), .premium-icon-3d:nth-child(even) {
+  animation-delay: 0.6s;
+}
+.lucide:nth-child(3n), .premium-icon-3d:nth-child(3n) {
+  animation-delay: 1.2s;
+}
+.lucide:nth-child(5n), .premium-icon-3d:nth-child(5n) {
+  animation-delay: 1.8s;
+}
+
+/* Pause animation on hover and make it snap to original place smoothly */
+.lucide:hover, .premium-icon-3d:hover {
+  animation-play-state: paused;
+  transform: translateY(-2px) scale(1.05) !important;
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.8)) drop-shadow(0 6px 8px rgba(255, 255, 255, 0.3)) !important;
+}
