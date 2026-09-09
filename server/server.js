@@ -33,6 +33,49 @@ createAuthRoutes(app, db.pool);
 // Setup all API routes (alarms, geofences, history, trips, reports, etc.)
 createAllRoutes(app, db.pool, io);
 
+const fs = require('fs');
+const path = require('path');
+
+// --- DATABASE AUTO-SETUP ENDPOINT ---
+app.get('/api/setup-database', async (req, res) => {
+  try {
+    const pool = db.pool;
+    let logs = [];
+    const log = (msg) => { logs.push(msg); console.log(msg); };
+
+    log('🔧 Veritabanı kurulumu başlatılıyor...');
+
+    // We will use the existing schema.sql file to run the entire structure
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      const sqlContent = fs.readFileSync(schemaPath, 'utf8');
+      
+      // Execute raw SQL file content. MultipleStatements is enabled in db.js
+      await pool.query(sqlContent);
+      log('✅ schema.sql başarıyla çalıştırıldı ve tüm tablolar oluşturuldu.');
+    } else {
+      log('❌ schema.sql dosyası bulunamadı!');
+    }
+
+    // Default admin user
+    try {
+      await pool.query(`INSERT IGNORE INTO users (username, password_hash, email, full_name, role) VALUES ('admin', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@filotakip.com', 'Sistem Yöneticisi', 'admin')`);
+      log('✅ Varsayılan admin kullanıcısı eklendi (Şifre: admin123)');
+    } catch(e) { log('⏭️ Admin kullanıcısı kontrol edildi.'); }
+
+    res.send(`
+      <div style="font-family: sans-serif; padding: 40px; background: #02040a; color: white; height: 100vh;">
+        <h1 style="color: #10b981;">🎉 Kurulum Başarılı!</h1>
+        <p>Veritabanı tablolarınız sorunsuz şekilde oluşturuldu.</p>
+        <pre style="background: #1e293b; padding: 20px; border-radius: 10px; color: #94a3b8; font-size: 12px;">${logs.join('<br/>')}</pre>
+        <a href="/dashboard" style="display: inline-block; margin-top: 20px; padding: 10px 20px; background: #3b82f6; color: white; text-decoration: none; border-radius: 8px;">🚀 Panele Dön</a>
+      </div>
+    `);
+  } catch (err) {
+    res.status(500).send(`<div style="font-family: sans-serif; padding: 40px; background: #02040a; color: white; height: 100vh;"><h1 style="color: #ef4444;">❌ Kurulum Hatası</h1><pre style="color: #fca5a5;">${err.message}</pre></div>`);
+  }
+});
+
 // --- REST API ENDPOINTS ---
 app.get('/api/vehicles', async (req, res) => {
   try {
