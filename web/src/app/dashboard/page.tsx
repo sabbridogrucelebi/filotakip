@@ -53,50 +53,22 @@ export default function DashboardPage() {
       
       newSuggestions = [...matchingVehicles];
 
-      // 2. Build viewbox from vehicle cluster center (tighter bias around dominant city)
-      let viewboxParam = '';
-      if (dominantCityCenter) {
-        const radius = 0.3; // ~30km radius
-        const minLat = dominantCityCenter.lat - radius;
-        const maxLat = dominantCityCenter.lat + radius;
-        const minLng = dominantCityCenter.lng - radius;
-        const maxLng = dominantCityCenter.lng + radius;
-        viewboxParam = `&viewbox=${minLng},${maxLat},${maxLng},${minLat}&bounded=1`;
-      }
-
-      // 3. Fetch Nominatim with tighter city bias first
+      // 2. Fetch Google Places Autocomplete API
       try {
-        // First try: bounded search (only results within vehicle cluster area)
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=tr${viewboxParam}`);
-        const data = await res.json();
-        
-        let addressSuggestions = data.map((item: any) => ({
-          type: 'address',
-          title: item.display_name,
-          lat: parseFloat(item.lat),
-          lng: parseFloat(item.lon)
-        }));
-
-        // If bounded search returns too few results, do a wider Turkey-wide search
-        if (addressSuggestions.length < 2 && dominantCityCenter) {
-          const widerRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=tr`);
-          const widerData = await widerRes.json();
-          const widerSuggestions = widerData.map((item: any) => ({
-            type: 'address',
-            title: item.display_name,
-            lat: parseFloat(item.lat),
-            lng: parseFloat(item.lon)
-          }));
-          // Merge without duplicates
-          const existingTitles = new Set(addressSuggestions.map((s: any) => s.title));
-          widerSuggestions.forEach((s: any) => {
-            if (!existingTitles.has(s.title)) addressSuggestions.push(s);
-          });
+        let apiUrl = `/api/places?q=${encodeURIComponent(query)}`;
+        if (dominantCityCenter) {
+          apiUrl += `&lat=${dominantCityCenter.lat}&lng=${dominantCityCenter.lng}`;
         }
         
-        newSuggestions = [...newSuggestions, ...addressSuggestions].slice(0, 7);
+        const res = await fetch(apiUrl);
+        if (res.ok) {
+          const addressSuggestions = await res.json();
+          if (Array.isArray(addressSuggestions)) {
+            newSuggestions = [...newSuggestions, ...addressSuggestions].slice(0, 7);
+          }
+        }
       } catch (err) {
-        console.error("Geocoding failed:", err);
+        console.error("Places API fetch failed:", err);
       }
 
       setSuggestions(newSuggestions);
@@ -107,17 +79,34 @@ export default function DashboardPage() {
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery, vehicles, dominantCityCenter]);
 
-  const handleSelectSuggestion = (suggestion: any) => {
+  const handleSelectSuggestion = async (suggestion: any) => {
     // Clear search after selecting
     setSearchQuery("");
     setShowSuggestions(false);
     setSuggestions([]);
-    setFocusTarget({ lat: suggestion.lat, lng: suggestion.lng, zoom: suggestion.type === 'vehicle' ? 16 : 14 });
     
-    if (suggestion.type === 'address') {
-      setSearchMarker({ lat: suggestion.lat, lng: suggestion.lng, title: suggestion.title });
-    } else {
+    // If it's a vehicle, it already has lat/lng
+    if (suggestion.type === 'vehicle') {
+      setFocusTarget({ lat: suggestion.lat, lng: suggestion.lng, zoom: 16 });
       setSearchMarker(null);
+      return;
+    }
+
+    // If it's an address from Google Places, fetch coordinates using place_id
+    if (suggestion.type === 'address' && suggestion.place_id) {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/geocode?place_id=${suggestion.place_id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setFocusTarget({ lat: data.lat, lng: data.lng, zoom: 15 });
+          setSearchMarker({ lat: data.lat, lng: data.lng, title: suggestion.title });
+        }
+      } catch (err) {
+        console.error("Geocoding fetch failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
     }
   };
 
