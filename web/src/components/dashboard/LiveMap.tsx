@@ -192,8 +192,9 @@ export default function LiveMap({
   searchMarker?: { lat: number; lng: number; title: string } | null
 }) {
   const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);
+  const [dailyStats, setDailyStats] = useState<{distance: string, maxSpeed: number, avgSpeed: string, idleMinutes: string} | null>(null);
   const [showStreetView, setShowStreetView] = useState(false);
-  const [mapLayer, setMapLayer] = useState<MapLayerKey>('google_road');
+  const [mapLayer, setMapLayer] = useState<MapLayerKey>('osm_standard');
   const [showLayerMenu, setShowLayerMenu] = useState(false);
 
   // Keep selected vehicle data fresh
@@ -204,6 +205,17 @@ export default function LiveMap({
     }
   }, [vehicles]);
 
+  // Fetch daily stats when a vehicle is selected
+  useEffect(() => {
+    if (selectedVehicle) {
+      setDailyStats(null); // Reset while loading
+      fetch(`/api/vehicles/${selectedVehicle.imei}/daily-stats`)
+        .then(res => res.json())
+        .then(data => setDailyStats(data))
+        .catch(err => console.error('Error fetching daily stats:', err));
+    }
+  }, [selectedVehicle?.imei]);
+
   const handleMarkerClick = useCallback((v: any) => {
     setSelectedVehicle(v);
     setShowStreetView(false);
@@ -212,6 +224,7 @@ export default function LiveMap({
   const closePanel = useCallback(() => {
     setSelectedVehicle(null);
     setShowStreetView(false);
+    setDailyStats(null);
   }, []);
 
   const status = selectedVehicle ? getVehicleStatusColor(selectedVehicle) : null;
@@ -364,9 +377,9 @@ export default function LiveMap({
         <div 
           style={{
             position: 'absolute',
-            top: '80px',
+            top: '20px',
             right: '20px',
-            width: '340px',
+            width: '360px',
             zIndex: 1000,
             fontFamily: "'Inter', 'Segoe UI', sans-serif",
             animation: 'slideIn 0.3s ease-out',
@@ -374,19 +387,19 @@ export default function LiveMap({
         >
           {/* Main Card */}
           <div style={{
-            background: 'linear-gradient(145deg, rgba(8,12,28,0.97), rgba(2,6,18,0.99))',
-            borderRadius: '20px',
-            border: `1px solid ${status.color}33`,
-            boxShadow: `0 25px 60px rgba(0,0,0,0.6), 0 0 40px ${status.color}15, inset 0 1px 0 rgba(255,255,255,0.05)`,
+            background: 'rgba(250, 250, 252, 0.95)',
+            borderRadius: '24px',
+            border: '1px solid rgba(255,255,255,0.8)',
+            boxShadow: `0 25px 50px rgba(0,0,0,0.1), 0 0 40px ${status.color}15, inset 0 1px 0 rgba(255,255,255,1)`,
             overflow: 'hidden',
             backdropFilter: 'blur(30px)',
           }}>
             
             {/* Top Glow Bar */}
             <div style={{
-              height: '3px',
+              height: '4px',
               background: `linear-gradient(90deg, transparent, ${status.color}, transparent)`,
-              boxShadow: `0 0 20px ${status.color}80`,
+              boxShadow: `0 0 15px ${status.color}60`,
             }}></div>
 
             {/* Header with Plate */}
@@ -396,9 +409,9 @@ export default function LiveMap({
                   <div style={{
                     fontSize: '22px',
                     fontWeight: 900,
-                    color: '#fff',
-                    letterSpacing: '3px',
-                    textShadow: `0 0 30px ${status.color}40`,
+                    color: '#1e293b',
+                    letterSpacing: '2px',
+                    textShadow: `0 2px 10px ${status.color}20`,
                   }}>
                     {selectedVehicle.plate || selectedVehicle.imei}
                   </div>
@@ -407,8 +420,8 @@ export default function LiveMap({
                 <button 
                   onClick={closePanel}
                   style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
                     borderRadius: '10px',
                     width: '32px',
                     height: '32px',
@@ -416,12 +429,13 @@ export default function LiveMap({
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    color: '#94a3b8',
+                    color: '#64748b',
                     fontSize: '18px',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
                     transition: 'all 0.2s',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#0f172a'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.color = '#64748b'; }}
                 >
                   ✕
                 </button>
@@ -435,11 +449,11 @@ export default function LiveMap({
                 width: '80px',
                 height: '80px',
                 borderRadius: '50%',
-                background: `conic-gradient(${status.color} ${Math.min(selectedVehicle.speed / 180 * 360, 360)}deg, rgba(255,255,255,0.05) 0deg)`,
+                background: `conic-gradient(${status.color} ${Math.min(selectedVehicle.speed / 180 * 360, 360)}deg, #e2e8f0 0deg)`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: `0 0 25px ${status.color}30, inset 0 0 20px rgba(0,0,0,0.5)`,
+                boxShadow: `0 5px 15px ${status.color}20, inset 0 2px 5px rgba(0,0,0,0.05)`,
                 position: 'relative',
                 flexShrink: 0,
               }}>
@@ -447,19 +461,18 @@ export default function LiveMap({
                   width: '64px',
                   height: '64px',
                   borderRadius: '50%',
-                  background: 'linear-gradient(145deg, #0a0f1e, #060a18)',
+                  background: 'linear-gradient(145deg, #ffffff, #f1f5f9)',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.8)',
+                  boxShadow: 'inset 0 2px 5px rgba(255,255,255,0.8), 0 2px 10px rgba(0,0,0,0.1)',
                 }}>
                   <span style={{
                     fontSize: '20px',
                     fontWeight: 900,
-                    color: status.color,
+                    color: selectedVehicle.speed > 0 ? status.color : '#334155',
                     lineHeight: 1,
-                    textShadow: `0 0 15px ${status.color}80`,
                   }}>
                     {selectedVehicle.speed}
                   </span>
@@ -479,7 +492,7 @@ export default function LiveMap({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '8px',
-                  background: `${status.color}15`,
+                  background: `${status.color}10`,
                   border: `1px solid ${status.color}30`,
                   borderRadius: '10px',
                   padding: '8px 14px',
@@ -496,7 +509,7 @@ export default function LiveMap({
                   <span style={{
                     fontSize: '12px',
                     fontWeight: 800,
-                    color: status.color,
+                    color: status.color === '#1e1e1e' ? '#334155' : status.color,
                     letterSpacing: '1px',
                   }}>
                     {status.label}
@@ -506,8 +519,205 @@ export default function LiveMap({
                   fontSize: '11px',
                   color: '#64748b',
                   lineHeight: 1.4,
+                  fontWeight: 500,
                 }}>
                   {status.sublabel}
+                </div>
+              </div>
+            </div>
+
+            {/* Daily KPIs Section - Premium Glassmorphism */}
+            <div style={{ padding: '0 20px 16px' }}>
+              <div style={{
+                fontSize: '9px',
+                fontWeight: 700,
+                color: '#94a3b8',
+                letterSpacing: '2px',
+                textTransform: 'uppercase' as const,
+                marginBottom: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}>
+                <span style={{
+                  width: '16px',
+                  height: '2px',
+                  background: 'linear-gradient(90deg, #3b82f6, transparent)',
+                  borderRadius: '2px',
+                }}></span>
+                BUGÜNKÜ İSTATİSTİKLER
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '10px',
+              }}>
+                {/* Günlük KM */}
+                <div style={{
+                  background: 'linear-gradient(145deg, #f8fafc, #f1f5f9)',
+                  border: '1px solid rgba(226,232,240,0.8)',
+                  borderRadius: '16px',
+                  padding: '14px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9)',
+                  position: 'relative' as const,
+                  overflow: 'hidden',
+                  transition: 'all 0.3s ease',
+                }}>
+                  <div style={{
+                    position: 'absolute' as const,
+                    top: 0,
+                    left: 0,
+                    width: '3px',
+                    height: '100%',
+                    background: 'linear-gradient(180deg, #3b82f6, #60a5fa)',
+                    borderRadius: '0 2px 2px 0',
+                  }}></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '13px',
+                      boxShadow: '0 2px 6px rgba(59,130,246,0.12)',
+                    }}>🛣️</div>
+                    <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' as const }}>
+                      Günlük Mesafe
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', paddingLeft: '4px' }}>
+                    {dailyStats ? dailyStats.distance : <span style={{ color: '#cbd5e1' }}>—</span>}
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginLeft: '4px' }}>km</span>
+                  </div>
+                </div>
+
+                {/* Maks Hız */}
+                <div style={{
+                  background: 'linear-gradient(145deg, #f8fafc, #f1f5f9)',
+                  border: '1px solid rgba(226,232,240,0.8)',
+                  borderRadius: '16px',
+                  padding: '14px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9)',
+                  position: 'relative' as const,
+                  overflow: 'hidden',
+                  transition: 'all 0.3s ease',
+                }}>
+                  <div style={{
+                    position: 'absolute' as const,
+                    top: 0,
+                    left: 0,
+                    width: '3px',
+                    height: '100%',
+                    background: 'linear-gradient(180deg, #ef4444, #f87171)',
+                    borderRadius: '0 2px 2px 0',
+                  }}></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #fef2f2, #fecaca)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '13px',
+                      boxShadow: '0 2px 6px rgba(239,68,68,0.12)',
+                    }}>🚀</div>
+                    <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' as const }}>
+                      Maks Hız
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', paddingLeft: '4px' }}>
+                    {dailyStats ? dailyStats.maxSpeed : <span style={{ color: '#cbd5e1' }}>—</span>}
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginLeft: '4px' }}>km/s</span>
+                  </div>
+                </div>
+
+                {/* Ortalama Hız */}
+                <div style={{
+                  background: 'linear-gradient(145deg, #f8fafc, #f1f5f9)',
+                  border: '1px solid rgba(226,232,240,0.8)',
+                  borderRadius: '16px',
+                  padding: '14px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9)',
+                  position: 'relative' as const,
+                  overflow: 'hidden',
+                  transition: 'all 0.3s ease',
+                }}>
+                  <div style={{
+                    position: 'absolute' as const,
+                    top: 0,
+                    left: 0,
+                    width: '3px',
+                    height: '100%',
+                    background: 'linear-gradient(180deg, #f59e0b, #fbbf24)',
+                    borderRadius: '0 2px 2px 0',
+                  }}></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #fffbeb, #fef3c7)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '13px',
+                      boxShadow: '0 2px 6px rgba(245,158,11,0.12)',
+                    }}>⚡</div>
+                    <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' as const }}>
+                      Ort. Hız
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', paddingLeft: '4px' }}>
+                    {dailyStats ? dailyStats.avgSpeed : <span style={{ color: '#cbd5e1' }}>—</span>}
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginLeft: '4px' }}>km/s</span>
+                  </div>
+                </div>
+
+                {/* Rölanti Süresi */}
+                <div style={{
+                  background: 'linear-gradient(145deg, #f8fafc, #f1f5f9)',
+                  border: '1px solid rgba(226,232,240,0.8)',
+                  borderRadius: '16px',
+                  padding: '14px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9)',
+                  position: 'relative' as const,
+                  overflow: 'hidden',
+                  transition: 'all 0.3s ease',
+                }}>
+                  <div style={{
+                    position: 'absolute' as const,
+                    top: 0,
+                    left: 0,
+                    width: '3px',
+                    height: '100%',
+                    background: 'linear-gradient(180deg, #a855f7, #c084fc)',
+                    borderRadius: '0 2px 2px 0',
+                  }}></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #faf5ff, #e9d5ff)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '13px',
+                      boxShadow: '0 2px 6px rgba(168,85,247,0.12)',
+                    }}>⏸️</div>
+                    <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' as const }}>
+                      Rölanti
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', paddingLeft: '4px' }}>
+                    {dailyStats ? dailyStats.idleMinutes : <span style={{ color: '#cbd5e1' }}>—</span>}
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginLeft: '4px' }}>dk</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -515,7 +725,7 @@ export default function LiveMap({
             {/* Divider */}
             <div style={{
               height: '1px',
-              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)',
+              background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.05), transparent)',
               margin: '0 20px',
             }}></div>
 
@@ -524,17 +734,18 @@ export default function LiveMap({
               <div style={{
                 fontSize: '9px',
                 fontWeight: 700,
-                color: '#475569',
+                color: '#64748b',
                 letterSpacing: '2px',
                 textTransform: 'uppercase',
                 marginBottom: '10px',
               }}>ŞOFÖR BİLGİSİ</div>
               
               <div style={{
-                background: 'rgba(255,255,255,0.03)',
+                background: '#ffffff',
                 borderRadius: '14px',
-                border: '1px solid rgba(255,255,255,0.05)',
+                border: '1px solid #e2e8f0',
                 padding: '14px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                   {/* Avatar */}
@@ -542,13 +753,13 @@ export default function LiveMap({
                     width: '40px',
                     height: '40px',
                     borderRadius: '12px',
-                    background: 'linear-gradient(135deg, #1e3a5f, #0f2540)',
+                    background: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '18px',
-                    border: '1px solid rgba(59,130,246,0.2)',
-                    boxShadow: '0 0 15px rgba(59,130,246,0.1)',
+                    border: '1px solid #cbd5e1',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
                     flexShrink: 0,
                   }}>
                     👤
@@ -557,13 +768,13 @@ export default function LiveMap({
                     <div style={{
                       fontSize: '14px',
                       fontWeight: 700,
-                      color: '#e2e8f0',
+                      color: '#1e293b',
                     }}>
                       {selectedVehicle.driver_name || 'Şoför Atanmadı'}
                     </div>
                     <div style={{
                       fontSize: '10px',
-                      color: '#475569',
+                      color: '#64748b',
                       letterSpacing: '1px',
                     }}>
                       {selectedVehicle.driver_phone || 'Telefon kayıtlı değil'}
@@ -606,26 +817,27 @@ export default function LiveMap({
             {/* Signal Info */}
             <div style={{ padding: '0 20px 16px' }}>
               <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '12px 16px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                background: 'rgba(0,0,0,0.3)',
-                borderRadius: '10px',
-                padding: '10px 14px',
-                border: '1px solid rgba(255,255,255,0.03)',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)',
               }}>
-                <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>Son Sinyal</span>
-                <span style={{
-                  fontSize: '12px',
-                  color: '#94a3b8',
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Son Sinyal</span>
+                <span style={{ 
+                  fontSize: '12px', 
+                  color: '#1e293b', 
                   fontWeight: 700,
-                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                  background: 'rgba(0,0,0,0.4)',
-                  padding: '4px 10px',
+                  fontFamily: 'monospace',
+                  background: '#ffffff',
+                  padding: '4px 8px',
                   borderRadius: '6px',
-                  border: '1px solid rgba(255,255,255,0.05)',
+                  border: '1px solid #cbd5e1',
                 }}>
-                  {new Date(selectedVehicle.last_update).toLocaleTimeString('tr-TR')}
+                  {selectedVehicle.last_update ? new Date(selectedVehicle.last_update).toLocaleTimeString('tr-TR') : 'Bilinmiyor'}
                 </span>
               </div>
             </div>

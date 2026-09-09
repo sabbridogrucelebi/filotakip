@@ -48,6 +48,15 @@ app.get('/api/diagnostics/packets/:imei', (req, res) => {
   res.json(packetLog.get(req.params.imei) || []);
 });
 
+app.get('/api/vehicles/:imei/daily-stats', async (req, res) => {
+  try {
+    const stats = await db.getDailyStats(req.params.imei);
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch daily stats' });
+  }
+});
+
 app.get('/api/diagnostics/packets', (req, res) => {
   const all = {};
   for (const [imei, logs] of packetLog.entries()) {
@@ -242,12 +251,13 @@ async function handleLocationPacket(socket, data) {
       locationData.longitude = snapped.lng;
     }
     
-    // Save to DB
-    await db.saveLocation(imei, locationData);
-    
-    // Get current ACC status from device table
+    // Get current ACC status from device table BEFORE saving
     const accStatus = await db.pool.execute('SELECT acc_on FROM devices WHERE imei = ?', [imei]);
     const accOn = accStatus[0].length > 0 ? !!accStatus[0][0].acc_on : false;
+
+    // Save to DB (passing accOn)
+    await db.saveLocation(imei, locationData, accOn ? 1 : 0);
+    
     
     // Construct real-time payload
     const payload = {

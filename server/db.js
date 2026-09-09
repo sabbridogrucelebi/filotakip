@@ -37,7 +37,7 @@ pool.getConnection()
     console.error('MySQL bağlantı hatası:', err.message);
   });
 
-async function saveLocation(imei, locationData) {
+async function saveLocation(imei, locationData, accOn) {
   const query = `
     INSERT INTO positions 
     (device_imei, device_time, latitude, longitude, speed, course, satellites, is_gps_valid, ignition) 
@@ -52,7 +52,7 @@ async function saveLocation(imei, locationData) {
     locationData.course,
     locationData.satellites,
     true, // assuming valid for now if parsed
-    locationData.isGpsTrackingOn
+    accOn !== undefined ? accOn : locationData.isGpsTrackingOn
   ];
 
   try {
@@ -173,12 +173,13 @@ async function updateDeviceMetadata(imei, data) {
 module.exports = {
   pool,
   saveLocation,
-  verifyOrRegisterDevice,
+  updateDeviceAcc,
   getLatestVehiclePositions,
+  verifyOrRegisterDevice,
   getLastPositionByImei,
   updateDeviceMetadata,
-  updateDeviceAcc,
-  cleanGhostDevices
+  cleanGhostDevices,
+  getDailyStats
 };
 
 async function updateDeviceAcc(imei, accOn) {
@@ -199,5 +200,86 @@ async function cleanGhostDevices() {
     console.log('🧹 Cleaned up ghost devices from database');
   } catch (err) {
     console.error('Error cleaning ghost devices:', err);
+  }
+}
+
+// =================== DAILY STATS ===================
+// Haversine formula to calculate distance in km
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+async function getDailyStats(imei) {
+  try {
+    // Fetch all positions for today, ordered chronologically
+    const [rows] = await pool.execute(`
+      SELECT latitude, longitude, speed, ignition, device_time 
+      FROM positions 
+      WHERE device_imei = ? AND DATE(device_time) = CURDATE()
+      ORDER BY device_time ASC
+    `, [imei]);
+
+    if (!rows || rows.length === 0) {
+      return { distance: 0, maxSpeed: 0, avgSpeed: 0, idleMinutes: 0 };
+    }
+
+    let totalDistance = 0;
+    let maxSpeed = 0;
+    let sumSpeed = 0;
+    let movingPointCount = 0;
+    let totalIdleSeconds = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const current = rows[i];
+      
+      // Speed stats
+      if (current.speed > maxSpeed) maxSpeed = current.speed;
+      if (current.speed > 0) {
+        sumSpeed += current.speed;
+        movingPointCount++;
+      }
+
+      // Distance and Idle calculations require a previous point
+      if (i > 0) {
+        const prev = rows[i - 1];
+        
+        // Distance (only if moving)
+        if (current.speed > 0 || prev.speed > 0) {
+          const dist = calculateDistance(prev.latitude, prev.longitude, current.latitude, current.longitude);
+          if (dist < 100) { // filter out wild GPS jumps (e.g., > 100km in a few seconds)
+            totalDistance += dist;
+          }
+        }
+
+        // Idle time (speed = 0 AND ignition = 1 for both points)
+        if (current.speed === 0 && prev.speed === 0 && current.ignition === 1 && prev.ignition === 1) {
+          const timeDiffSeconds = (new Date(current.device_time) - new Date(prev.device_time)) / 1000;
+          if (timeDiffSeconds > 0 && timeDiffSeconds < 3600) { // Max 1 hour gap allowed to avoid huge jumps
+            totalIdleSeconds += timeDiffSeconds;
+          }
+        }
+      }
+    }
+
+    const avgSpeed = movingPointCount > 0 ? (sumSpeed / movingPointCount) : 0;
+    const idleMinutes = totalIdleSeconds / 60;
+
+    return {
+      distance: totalDistance.toFixed(2),
+      maxSpeed: maxSpeed,
+      avgSpeed: avgSpeed.toFixed(1),
+      idleMinutes: idleMinutes.toFixed(0)
+    };
+  } catch (err) {
+    console.error('Error calculating daily stats:', err);
+    return { distance: 0, maxSpeed: 0, avgSpeed: 0, idleMinutes: 0 };
   }
 }
