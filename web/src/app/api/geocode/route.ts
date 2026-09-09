@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'place_id parameter is required' }, { status: 400 });
   }
 
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || 'AIzaSyBQAgq-1DSVQ9dGAOBsh2EPtNbbH512nmo';
   if (!apiKey) {
     return NextResponse.json({ error: 'Google Maps API key is not configured' }, { status: 500 });
   }
