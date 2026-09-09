@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { Activity, AlertTriangle, CheckCircle, Navigation, Search } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle, Navigation, Search, Car, Radar, ShieldCheck } from 'lucide-react';
 import { io } from 'socket.io-client';
 
 // Dynamically import Leaflet Map to avoid SSR window is not defined error
@@ -190,12 +190,12 @@ export default function DashboardPage() {
   const movingVehicles = vehicles.filter(v => v.speed > 0).length;
   const speedingAlarms = vehicles.filter(v => v.speed > 100).length;
 
-  // KPI data for bottom cards
+  // KPI data for bottom cards (Using Premium Lucide Icons)
   const kpiItems = [
-    { title: 'TOPLAM ARAÇ', value: totalVehicles, icon: '🚗', accent: '#3b82f6' },
-    { title: 'HAREKET HALİNDE', value: movingVehicles, icon: '🚀', accent: '#10b981' },
-    { title: 'HIZ İHLALİ / ALARM', value: speedingAlarms, icon: '⚠️', accent: '#ef4444' },
-    { title: 'SİSTEM SAĞLIĞI', value: serverStatus, icon: '🛡️', accent: '#8b5cf6' },
+    { title: 'TOPLAM ARAÇ', value: totalVehicles, icon: <Car size={24} strokeWidth={2.5} />, accent: '#3b82f6' },
+    { title: 'HAREKET HALİNDE', value: movingVehicles, icon: <Radar size={24} strokeWidth={2.5} />, accent: '#10b981' },
+    { title: 'HIZ İHLALİ / ALARM', value: speedingAlarms, icon: <AlertTriangle size={24} strokeWidth={2.5} />, accent: '#ef4444' },
+    { title: 'SİSTEM SAĞLIĞI', value: serverStatus, icon: <ShieldCheck size={24} strokeWidth={2.5} />, accent: '#8b5cf6' },
   ];
 
   return (
