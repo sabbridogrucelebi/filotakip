@@ -18,6 +18,20 @@ const io = new Server(httpServer, {
 
 const { parseLocationPacket, crc16 } = require('./parser');
 const db = require('./db');
+const { createAuthRoutes } = require('./auth');
+const { createAllRoutes } = require('./routes');
+const AlarmEngine = require('./alarmEngine');
+const TripEngine = require('./tripEngine');
+
+// Initialize engines
+const alarmEngine = new AlarmEngine(db.pool, io);
+const tripEngine = new TripEngine(db.pool);
+
+// Setup auth routes
+createAuthRoutes(app, db.pool);
+
+// Setup all API routes (alarms, geofences, history, trips, reports, etc.)
+createAllRoutes(app, db.pool, io);
 
 // --- REST API ENDPOINTS ---
 app.get('/api/vehicles', async (req, res) => {
@@ -275,6 +289,12 @@ async function handleLocationPacket(socket, data) {
     io.emit('location_update', payload);
     console.log(`Emitted real-time update for ${imei}`);
     
+    // Run alarm checks
+    alarmEngine.checkAlarms(imei, locationData, accOn).catch(e => console.error('Alarm check error:', e));
+    
+    // Run trip detection
+    tripEngine.onLocationUpdate(imei, locationData, accOn).catch(e => console.error('Trip engine error:', e));
+    
   } catch (err) {
     console.error('Error parsing/saving location packet:', err.message);
   }
@@ -353,4 +373,9 @@ server.listen(PORT, () => {
 httpServer.listen(API_PORT, async () => {
   console.log(`HTTP/WebSocket API Server listening on port ${API_PORT}...`);
   await db.cleanGhostDevices();
+  
+  // Check for disconnected devices every 5 minutes
+  setInterval(() => alarmEngine.checkDisconnectedDevices(), 5 * 60 * 1000);
+  console.log('🚨 Alarm Engine started.');
+  console.log('🚗 Trip Engine started.');
 });

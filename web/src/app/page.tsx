@@ -9,10 +9,35 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push('/dashboard');
+    setError('');
+    setLoading(true);
+    
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: email, password }),
+      });
+      const data = await res.json();
+      
+      if (res.ok && data.accessToken) {
+        localStorage.setItem('accessToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        router.push('/dashboard');
+      } else {
+        setError(data.error || 'Giriş başarısız');
+      }
+    } catch (err) {
+      setError('Sunucu bağlantı hatası');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -114,11 +139,18 @@ export default function LoginPage() {
                   </div>
                 </div>
 
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm font-medium flex items-center gap-2">
+                    <span>⚠️</span> {error}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 hover:from-blue-500 hover:via-indigo-400 hover:to-purple-500 text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 mt-8 shadow-[0_0_40px_rgba(59,130,246,0.6)] hover:shadow-[0_0_60px_rgba(168,85,247,0.8)]"
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600 hover:from-blue-500 hover:via-indigo-400 hover:to-purple-500 text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 mt-8 shadow-[0_0_40px_rgba(59,130,246,0.6)] hover:shadow-[0_0_60px_rgba(168,85,247,0.8)] disabled:opacity-50"
                 >
-                  Oturum Aç
+                  {loading ? 'Giriş yapılıyor...' : 'Oturum Aç'}
                   <ArrowRight className="w-5 h-5" />
                 </button>
               </form>

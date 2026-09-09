@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from 'react';
-import { Map, Truck, Activity, Settings, LogOut, LayoutDashboard, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { Map, Truck, Activity, Settings, LogOut, LayoutDashboard, ChevronLeft, ChevronRight, User, Bell, Route, Shield, BarChart3, Wrench, MapPin, Wifi } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -10,7 +10,15 @@ export default function Sidebar() {
   
   const navItems = [
     { name: 'Canlı Harita', icon: Map, path: '/dashboard' },
-    { name: 'Ayarlar (Cihaz Ekle)', icon: Settings, path: '/dashboard/settings' },
+    { name: 'Araç Yönetimi', icon: Truck, path: '/dashboard/vehicles' },
+    { name: 'Alarmlar', icon: Bell, path: '/dashboard/alarms' },
+    { name: 'Rota Geçmişi', icon: Route, path: '/dashboard/history' },
+    { name: 'Geofence', icon: Shield, path: '/dashboard/geofences' },
+    { name: 'Raporlar', icon: BarChart3, path: '/dashboard/reports' },
+    { name: 'Bakım & Servis', icon: Wrench, path: '/dashboard/maintenance' },
+    { name: 'İlgi Noktaları', icon: MapPin, path: '/dashboard/poi' },
+    { name: 'Cihaz Sağlığı', icon: Wifi, path: '/dashboard/health' },
+    { name: 'Ayarlar', icon: Settings, path: '/dashboard/settings' },
   ];
 
   return (
