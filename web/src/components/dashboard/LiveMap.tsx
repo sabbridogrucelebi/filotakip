@@ -9,9 +9,9 @@ const MAP_LAYERS = {
   google_satellite: { name: 'Google Uydu', provider: 'Google', icon: '🛰️', url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attribution: '&copy; Google Maps' },
   google_hybrid: { name: 'Google Hibrit', provider: 'Google', icon: '🌍', url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', attribution: '&copy; Google Maps' },
   google_terrain: { name: 'Google Arazi', provider: 'Google', icon: '⛰️', url: 'https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', attribution: '&copy; Google Maps' },
-  osm_standard: { name: 'OSM Standart', provider: 'OSM', icon: '🗺️', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '&copy; OpenStreetMap' },
-  osm_topo: { name: 'OSM Topoğrafya', provider: 'OSM', icon: '⛰️', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', attribution: '&copy; OpenTopoMap' },
-  esri_satellite: { name: 'Esri Uydu', provider: 'OSM', icon: '🛰️', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attribution: '&copy; Esri' },
+  yandex_map: { name: 'Yandex Harita', provider: 'Yandex', icon: '🗺️', url: 'https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&scale=1&lang=tr_TR', attribution: '&copy; Yandex' },
+  yandex_satellite: { name: 'Yandex Uydu', provider: 'Yandex', icon: '🛰️', url: 'https://core-sat.maps.yandex.net/tiles?l=sat&x={x}&y={y}&z={z}&scale=1&lang=tr_TR', attribution: '&copy; Yandex' },
+  esri_satellite: { name: 'Esri Uydu', provider: 'Yandex', icon: '🛰️', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attribution: '&copy; Esri' },
 } as const;
 type MapLayerKey = keyof typeof MAP_LAYERS;
 
@@ -194,7 +194,7 @@ export default function LiveMap({
   const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);
   const [dailyStats, setDailyStats] = useState<{distance: string, maxSpeed: number, avgSpeed: string, idleMinutes: string} | null>(null);
   const [showStreetView, setShowStreetView] = useState(false);
-  const [mapLayer, setMapLayer] = useState<MapLayerKey>('osm_standard');
+  const [mapLayer, setMapLayer] = useState<MapLayerKey>('google_road');
   const [showLayerMenu, setShowLayerMenu] = useState(false);
 
   // Keep selected vehicle data fresh
@@ -337,10 +337,10 @@ export default function LiveMap({
                 </button>
               ))}
             </div>
-            {/* OSM / Esri Section */}
+            {/* Yandex / Esri Section */}
             <div style={{ padding: '10px 14px 12px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, color: '#10b981', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Diğer Haritalar</div>
-              {(Object.entries(MAP_LAYERS) as [MapLayerKey, typeof MAP_LAYERS[MapLayerKey]][]).filter(([,v]) => v.provider === 'OSM').map(([key, layer]) => (
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#ff0000', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Yandex Haritalar</div>
+              {(Object.entries(MAP_LAYERS) as [MapLayerKey, typeof MAP_LAYERS[MapLayerKey]][]).filter(([,v]) => v.provider === 'Yandex').map(([key, layer]) => (
                 <button
                   key={key}
                   onClick={() => { setMapLayer(key); setShowLayerMenu(false); }}
@@ -352,11 +352,11 @@ export default function LiveMap({
                     padding: '8px 10px',
                     marginBottom: '4px',
                     borderRadius: '10px',
-                    border: mapLayer === key ? '1px solid rgba(16,185,129,0.5)' : '1px solid transparent',
-                    background: mapLayer === key ? 'rgba(16,185,129,0.12)' : 'transparent',
+                    border: mapLayer === key ? '1px solid rgba(255,0,0,0.5)' : '1px solid transparent',
+                    background: mapLayer === key ? 'rgba(255,0,0,0.12)' : 'transparent',
                     cursor: 'pointer',
                     transition: 'all 0.15s',
-                    color: mapLayer === key ? '#6ee7b7' : '#94a3b8',
+                    color: mapLayer === key ? '#ff6b6b' : '#94a3b8',
                     fontSize: '12px',
                     fontWeight: mapLayer === key ? 700 : 500,
                     textAlign: 'left',
@@ -364,7 +364,7 @@ export default function LiveMap({
                 >
                   <span style={{ fontSize: '15px' }}>{layer.icon}</span>
                   {layer.name}
-                  {mapLayer === key && <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#10b981' }}>✓</span>}
+                  {mapLayer === key && <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#ff0000' }}>✓</span>}
                 </button>
               ))}
             </div>

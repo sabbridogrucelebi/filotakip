@@ -1,33 +1,11 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Activity, AlertTriangle, CheckCircle, Navigation, Search } from 'lucide-react';
 import { io } from 'socket.io-client';
 
 // Dynamically import Leaflet Map to avoid SSR window is not defined error
 const LiveMap = dynamic(() => import('@/components/dashboard/LiveMap'), { ssr: false });
-
-function KPICard({ title, value, icon: Icon, color }: any) {
-  const colorStyles = {
-    blue: 'text-cyan-400 bg-[#050B14]/80 border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] hover:shadow-[0_0_25px_rgba(6,182,212,0.3)]',
-    emerald: 'text-emerald-400 bg-[#050B14]/80 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] hover:shadow-[0_0_25px_rgba(16,185,129,0.3)]',
-    red: 'text-rose-400 bg-[#050B14]/80 border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.15)] hover:shadow-[0_0_25px_rgba(244,63,94,0.3)]',
-    purple: 'text-indigo-400 bg-[#050B14]/80 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)] hover:shadow-[0_0_25px_rgba(99,102,241,0.3)]',
-  };
-  
-  return (
-    <div className={`flex-1 backdrop-blur-2xl border rounded-xl p-3 px-5 transition-all duration-300 hover:-translate-y-1 cursor-default relative overflow-hidden group flex items-center justify-between ${colorStyles[color as keyof typeof colorStyles]}`}>
-      <div className={`absolute top-0 left-0 h-full w-[2px] bg-current opacity-50 group-hover:opacity-100 transition-opacity shadow-[0_0_10px_currentColor]`}></div>
-      <div>
-        <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.15em] mb-1">{title}</p>
-        <h3 className="text-xl font-black text-white tracking-tight drop-shadow-lg relative z-10">{value}</h3>
-      </div>
-      <div className={`p-2 rounded-lg bg-[#050B14] border border-current shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]`}>
-        <Icon className="w-4 h-4 opacity-80 group-hover:opacity-100 transition-opacity drop-shadow-[0_0_5px_currentColor]" />
-      </div>
-    </div>
-  );
-}
 
 import { ChevronUp, ChevronDown } from 'lucide-react';
 
@@ -41,6 +19,18 @@ export default function DashboardPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [focusTarget, setFocusTarget] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
   const [searchMarker, setSearchMarker] = useState<{ lat: number; lng: number; title: string } | null>(null);
+
+  // Determine the dominant city center from vehicle positions for search biasing
+  const dominantCityCenter = useMemo(() => {
+    if (vehicles.length === 0) return null;
+    const lats = vehicles.map(v => v.lat).filter(Boolean);
+    const lngs = vehicles.map(v => v.lng).filter(Boolean);
+    if (lats.length === 0) return null;
+    return {
+      lat: lats.reduce((a: number, b: number) => a + b, 0) / lats.length,
+      lng: lngs.reduce((a: number, b: number) => a + b, 0) / lngs.length,
+    };
+  }, [vehicles]);
 
   // Debounced Search Logic for Suggestions
   useEffect(() => {
@@ -63,34 +53,48 @@ export default function DashboardPage() {
       
       newSuggestions = [...matchingVehicles];
 
-      // 2. Calculate Bounding Box (Viewbox) of all vehicles for location biasing
+      // 2. Build viewbox from vehicle cluster center (tighter bias around dominant city)
       let viewboxParam = '';
-      if (vehicles.length > 0) {
-        const lats = vehicles.map(v => v.lat).filter(Boolean);
-        const lngs = vehicles.map(v => v.lng).filter(Boolean);
-        if (lats.length > 0 && lngs.length > 0) {
-          const minLat = Math.min(...lats) - 0.5; // add some padding
-          const maxLat = Math.max(...lats) + 0.5;
-          const minLng = Math.min(...lngs) - 0.5;
-          const maxLng = Math.max(...lngs) + 0.5;
-          // Nominatim viewbox format: <left>,<top>,<right>,<bottom> -> minLng,maxLat,maxLng,minLat
-          viewboxParam = `&viewbox=${minLng},${maxLat},${maxLng},${minLat}&bounded=0`;
-        }
+      if (dominantCityCenter) {
+        const radius = 0.3; // ~30km radius
+        const minLat = dominantCityCenter.lat - radius;
+        const maxLat = dominantCityCenter.lat + radius;
+        const minLng = dominantCityCenter.lng - radius;
+        const maxLng = dominantCityCenter.lng + radius;
+        viewboxParam = `&viewbox=${minLng},${maxLat},${maxLng},${minLat}&bounded=1`;
       }
 
-      // 3. Fetch Nominatim Geocoding API with Context-Aware Viewbox
+      // 3. Fetch Nominatim with tighter city bias first
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5${viewboxParam}`);
+        // First try: bounded search (only results within vehicle cluster area)
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=tr${viewboxParam}`);
         const data = await res.json();
         
-        const addressSuggestions = data.map((item: any) => ({
+        let addressSuggestions = data.map((item: any) => ({
           type: 'address',
           title: item.display_name,
           lat: parseFloat(item.lat),
           lng: parseFloat(item.lon)
         }));
+
+        // If bounded search returns too few results, do a wider Turkey-wide search
+        if (addressSuggestions.length < 2 && dominantCityCenter) {
+          const widerRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=tr`);
+          const widerData = await widerRes.json();
+          const widerSuggestions = widerData.map((item: any) => ({
+            type: 'address',
+            title: item.display_name,
+            lat: parseFloat(item.lat),
+            lng: parseFloat(item.lon)
+          }));
+          // Merge without duplicates
+          const existingTitles = new Set(addressSuggestions.map((s: any) => s.title));
+          widerSuggestions.forEach((s: any) => {
+            if (!existingTitles.has(s.title)) addressSuggestions.push(s);
+          });
+        }
         
-        newSuggestions = [...newSuggestions, ...addressSuggestions].slice(0, 7); // Max 7 items
+        newSuggestions = [...newSuggestions, ...addressSuggestions].slice(0, 7);
       } catch (err) {
         console.error("Geocoding failed:", err);
       }
@@ -98,14 +102,16 @@ export default function DashboardPage() {
       setSuggestions(newSuggestions);
       setShowSuggestions(true);
       setIsSearching(false);
-    }, 600); // 600ms debounce
+    }, 600);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery, vehicles]);
+  }, [searchQuery, vehicles, dominantCityCenter]);
 
   const handleSelectSuggestion = (suggestion: any) => {
-    setSearchQuery(suggestion.title);
+    // Clear search after selecting
+    setSearchQuery("");
     setShowSuggestions(false);
+    setSuggestions([]);
     setFocusTarget({ lat: suggestion.lat, lng: suggestion.lng, zoom: suggestion.type === 'vehicle' ? 16 : 14 });
     
     if (suggestion.type === 'address') {
@@ -118,26 +124,23 @@ export default function DashboardPage() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (suggestions.length > 0) {
-      handleSelectSuggestion(suggestions[0]); // Select best match
+      handleSelectSuggestion(suggestions[0]);
     }
   };
 
   // Setup WebSockets and Initial Fetch
   useEffect(() => {
-    // 1. Fetch initial positions from REST API
     fetch('/api/vehicles')
       .then(res => res.json())
       .then(data => {
         setVehicles(data);
-        setServerStatus("%99.9"); // If it succeeded, we're online
+        setServerStatus("%99.9");
       })
       .catch(err => {
         console.error("Failed to fetch initial vehicles:", err);
         setServerStatus("%0.0");
       });
 
-    // 2. Connect to Socket.IO for Live Updates
-    // Connect directly to the backend port (3001) since Next.js rewrites don't proxy WebSocket upgrades
     const backendUrl = typeof window !== 'undefined' 
       ? `${window.location.protocol}//${window.location.hostname}:3001`
       : 'http://127.0.0.1:3001';
@@ -150,21 +153,16 @@ export default function DashboardPage() {
       setVehicles(prevVehicles => {
         const index = prevVehicles.findIndex(v => v.imei === newLocation.imei);
         if (index > -1) {
-          // Update existing vehicle
           const updated = [...prevVehicles];
           const newV = { ...updated[index], ...newLocation };
-          
-          // Handle idle_since logic on the frontend for real-time updates
           if (newV.speed > 0 || !newV.ignition) {
             newV.idle_since = null;
           } else if (newV.speed === 0 && newV.ignition && !newV.idle_since) {
             newV.idle_since = new Date().toISOString();
           }
-          
           updated[index] = newV;
           return updated;
         } else {
-          // Add new vehicle if not in list
           return [...prevVehicles, newLocation];
         }
       });
@@ -176,13 +174,11 @@ export default function DashboardPage() {
         if (index > -1) {
           const updated = [...prevVehicles];
           const newV = { ...updated[index], ignition: statusUpdate.acc_on };
-          
           if (newV.speed > 0 || !newV.ignition) {
             newV.idle_since = null;
           } else if (newV.speed === 0 && newV.ignition && !newV.idle_since) {
             newV.idle_since = new Date().toISOString();
           }
-          
           updated[index] = newV;
           return updated;
         }
@@ -190,7 +186,6 @@ export default function DashboardPage() {
       });
     });
 
-    // Force re-render every 5 seconds so time-based colors (Orange > 25s, Purple > 60s) update without waiting for new packets
     const interval = setInterval(() => {
       setVehicles((v: any[]) => [...v]);
     }, 5000);
@@ -204,8 +199,15 @@ export default function DashboardPage() {
   // Calculate KPIs
   const totalVehicles = vehicles.length;
   const movingVehicles = vehicles.filter(v => v.speed > 0).length;
-  // Let's assume speed > 100 is an alarm/speeding violation
   const speedingAlarms = vehicles.filter(v => v.speed > 100).length;
+
+  // KPI data for bottom cards
+  const kpiItems = [
+    { title: 'TOPLAM ARAÇ', value: totalVehicles, icon: '🚗', accent: '#3b82f6' },
+    { title: 'HAREKET HALİNDE', value: movingVehicles, icon: '🚀', accent: '#10b981' },
+    { title: 'HIZ İHLALİ / ALARM', value: speedingAlarms, icon: '⚠️', accent: '#ef4444' },
+    { title: 'SİSTEM SAĞLIĞI', value: serverStatus, icon: '🛡️', accent: '#8b5cf6' },
+  ];
 
   return (
     <div className="w-full h-full relative bg-[#02040a] overflow-hidden">
@@ -214,15 +216,36 @@ export default function DashboardPage() {
         <LiveMap vehicles={vehicles} focusTarget={focusTarget} searchMarker={searchMarker} />
       </div>
 
-      {/* Top Search Bar with Autocomplete */}
+      {/* ==================== PREMIUM SEARCH BAR ==================== */}
       <div className="absolute top-6 left-0 right-0 z-20 flex justify-center pointer-events-none px-4">
         <div className="w-full max-w-2xl relative pointer-events-auto">
-          <form onSubmit={handleSearchSubmit} className="w-full bg-[#050B14]/80 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-2 group focus-within:border-cyan-500/70 focus-within:shadow-[0_0_30px_rgba(6,182,212,0.3)] transition-all z-30 relative">
-            <div className="pl-4">
+          <form 
+            onSubmit={handleSearchSubmit} 
+            style={{
+              width: '100%',
+              background: 'rgba(255,255,255,0.95)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(0,0,0,0.08)',
+              borderRadius: '16px',
+              padding: '6px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              position: 'relative',
+              zIndex: 30,
+              transition: 'all 0.3s',
+            }}
+          >
+            <div style={{ paddingLeft: '14px' }}>
               {isSearching ? (
-                <div className="w-5 h-5 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin"></div>
+                <div style={{
+                  width: '20px', height: '20px', borderRadius: '50%',
+                  border: '2px solid #3b82f6', borderTopColor: 'transparent',
+                  animation: 'spin 0.8s linear infinite',
+                }}></div>
               ) : (
-                <Search className="w-5 h-5 text-cyan-500 group-focus-within:text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.5)] transition-colors" />
+                <Search style={{ width: '20px', height: '20px', color: '#94a3b8' }} />
               )}
             </div>
             <input 
@@ -230,34 +253,109 @@ export default function DashboardPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => { if(suggestions.length > 0) setShowSuggestions(true); }}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} // delay to allow click
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               placeholder="Araç Plakası, IMEI veya Adres Ara (Örn: Konya, Selçuklu)" 
-              className="w-full bg-transparent border-none text-white placeholder-slate-500 focus:outline-none py-2 px-2 font-mono text-sm tracking-wide"
+              style={{
+                width: '100%',
+                background: 'transparent',
+                border: 'none',
+                color: '#1e293b',
+                fontSize: '14px',
+                fontWeight: 500,
+                padding: '10px 6px',
+                outline: 'none',
+                letterSpacing: '0.3px',
+              }}
             />
             <button 
               type="submit" 
-              className="bg-cyan-950/50 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 px-6 py-2 rounded-xl text-xs font-bold tracking-widest uppercase transition-colors shadow-[0_0_15px_rgba(6,182,212,0.2)]"
+              style={{
+                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                border: 'none',
+                color: '#fff',
+                padding: '10px 24px',
+                borderRadius: '12px',
+                fontSize: '12px',
+                fontWeight: 700,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase' as const,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(59,130,246,0.3)',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap' as const,
+                flexShrink: 0,
+              }}
             >
               Ara
             </button>
           </form>
 
-          {/* Autocomplete Dropdown */}
+          {/* Autocomplete Dropdown - Premium White */}
           {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-[#050B14]/95 backdrop-blur-2xl border border-cyan-500/30 rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-20 flex flex-col">
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              marginTop: '8px',
+              background: 'rgba(255,255,255,0.97)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(0,0,0,0.08)',
+              borderRadius: '14px',
+              overflow: 'hidden',
+              boxShadow: '0 16px 48px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06)',
+              zIndex: 20,
+            }}>
               {suggestions.map((item, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => handleSelectSuggestion(item)}
-                  className="flex items-center text-left px-4 py-3 hover:bg-cyan-900/30 transition-colors border-b border-white/5 last:border-b-0 group/item"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    textAlign: 'left',
+                    padding: '12px 16px',
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: idx < suggestions.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s',
+                    gap: '12px',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(59,130,246,0.06)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <div className={`p-2 rounded-lg mr-3 ${item.type === 'vehicle' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
-                    {item.type === 'vehicle' ? <Navigation className="w-4 h-4" /> : <Search className="w-4 h-4" />}
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: item.type === 'vehicle' 
+                      ? 'linear-gradient(135deg, #dbeafe, #bfdbfe)' 
+                      : 'linear-gradient(135deg, #dcfce7, #bbf7d0)',
+                    border: item.type === 'vehicle' 
+                      ? '1px solid rgba(59,130,246,0.2)' 
+                      : '1px solid rgba(16,185,129,0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    flexShrink: 0,
+                  }}>
+                    {item.type === 'vehicle' ? '🚗' : '📍'}
                   </div>
-                  <div className="flex-1 overflow-hidden">
-                    <p className="text-sm font-bold text-white truncate">{item.title}</p>
-                    <p className="text-[10px] text-slate-400 font-mono tracking-widest uppercase mt-0.5">
+                  <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
+                    <p style={{ 
+                      fontSize: '13px', fontWeight: 600, color: '#1e293b',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      margin: 0,
+                    }}>{item.title}</p>
+                    <p style={{ 
+                      fontSize: '10px', color: '#94a3b8', fontWeight: 600,
+                      letterSpacing: '1.5px', textTransform: 'uppercase',
+                      marginTop: '2px', margin: 0,
+                    }}>
                       {item.type === 'vehicle' ? 'Araç Filosu' : 'Harita Sonucu'}
                     </p>
                   </div>
@@ -268,30 +366,122 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Bottom KPI Cards */}
+      {/* ==================== BOTTOM KPI CARDS - PREMIUM WHITE ==================== */}
       <div className={`absolute bottom-6 left-0 right-0 z-20 flex flex-col items-center transition-all duration-500 ease-in-out ${showCards ? 'translate-y-0' : 'translate-y-[120px]'}`}>
         
         {/* Drawer Toggle Handle */}
         <button 
           onClick={() => setShowCards(!showCards)}
-          className="mb-2 bg-[#050B14]/90 backdrop-blur-xl border border-cyan-500/30 border-b-0 rounded-t-xl px-6 py-1.5 flex items-center justify-center text-cyan-400 hover:text-white hover:bg-cyan-950/60 shadow-[0_-5px_15px_rgba(6,182,212,0.15)] transition-all cursor-pointer pointer-events-auto group"
+          style={{
+            marginBottom: '8px',
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(0,0,0,0.06)',
+            borderBottom: 'none',
+            borderRadius: '12px 12px 0 0',
+            padding: '6px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#64748b',
+            cursor: 'pointer',
+            boxShadow: '0 -4px 12px rgba(0,0,0,0.06)',
+            transition: 'all 0.2s',
+            gap: '6px',
+          }}
           title={showCards ? "İstatistikleri Gizle" : "İstatistikleri Göster"}
         >
-          {showCards ? <ChevronDown className="w-4 h-4 group-hover:drop-shadow-[0_0_5px_currentColor]" /> : <ChevronUp className="w-4 h-4 group-hover:drop-shadow-[0_0_5px_currentColor]" />}
-          <span className="text-[10px] uppercase font-bold tracking-widest ml-2 group-hover:drop-shadow-[0_0_5px_currentColor]">{showCards ? "Gizle" : "Göster"}</span>
+          {showCards ? <ChevronDown style={{ width: '14px', height: '14px' }} /> : <ChevronUp style={{ width: '14px', height: '14px' }} />}
+          <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase' }}>{showCards ? "Gizle" : "Göster"}</span>
         </button>
 
-        {/* The Cards themselves */}
+        {/* The Cards */}
         <div className="w-full px-8 pointer-events-none">
-          <div className="flex flex-col xl:flex-row gap-4 w-full max-w-7xl mx-auto pointer-events-auto">
-            <KPICard title="Toplam Araç" value={totalVehicles} icon={Navigation} color="blue" />
-            <KPICard title="Hareket Halinde" value={movingVehicles} icon={Activity} color="emerald" />
-            <KPICard title="Hız İhlali / Alarm" value={speedingAlarms} icon={AlertTriangle} color="red" />
-            <KPICard title="Sistem Sağlığı" value={serverStatus} icon={CheckCircle} color="purple" />
+          <div style={{ display: 'flex', gap: '14px', maxWidth: '1200px', margin: '0 auto' }} className="pointer-events-auto">
+            {kpiItems.map((kpi, idx) => (
+              <div
+                key={idx}
+                style={{
+                  flex: 1,
+                  background: 'rgba(255,255,255,0.92)',
+                  backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(0,0,0,0.06)',
+                  borderRadius: '16px',
+                  padding: '14px 18px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04)',
+                  position: 'relative' as const,
+                  overflow: 'hidden',
+                  cursor: 'default',
+                  transition: 'all 0.3s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+                onMouseEnter={e => { 
+                  e.currentTarget.style.transform = 'translateY(-3px)'; 
+                  e.currentTarget.style.boxShadow = `0 12px 32px rgba(0,0,0,0.12), 0 0 20px ${kpi.accent}15`;
+                }}
+                onMouseLeave={e => { 
+                  e.currentTarget.style.transform = 'translateY(0)'; 
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04)';
+                }}
+              >
+                {/* Left accent bar */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '3px',
+                  height: '100%',
+                  background: `linear-gradient(180deg, ${kpi.accent}, ${kpi.accent}60)`,
+                  borderRadius: '0 2px 2px 0',
+                }}></div>
+
+                <div style={{ paddingLeft: '6px' }}>
+                  <p style={{
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    color: '#94a3b8',
+                    letterSpacing: '1.5px',
+                    textTransform: 'uppercase',
+                    marginBottom: '4px',
+                    margin: 0,
+                  }}>{kpi.title}</p>
+                  <h3 style={{
+                    fontSize: '22px',
+                    fontWeight: 900,
+                    color: '#0f172a',
+                    margin: '4px 0 0 0',
+                    letterSpacing: '-0.5px',
+                  }}>{kpi.value}</h3>
+                </div>
+
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '12px',
+                  background: `linear-gradient(135deg, ${kpi.accent}15, ${kpi.accent}08)`,
+                  border: `1px solid ${kpi.accent}20`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px',
+                  flexShrink: 0,
+                }}>
+                  {kpi.icon}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-
       </div>
+
+      {/* Spin animation */}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
