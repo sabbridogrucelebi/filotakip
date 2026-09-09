@@ -379,12 +379,17 @@ export default function LiveMap({
             position: 'absolute',
             top: '20px',
             right: '20px',
-            width: '360px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '16px',
+            flexDirection: 'row-reverse',
             zIndex: 1000,
             fontFamily: "'Inter', 'Segoe UI', sans-serif",
             animation: 'slideIn 0.3s ease-out',
           }}
         >
+          {/* Main Card Wrapper */}
+          <div style={{ width: '360px', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
           {/* Main Card */}
           <div style={{
             background: 'rgba(250, 250, 252, 0.95)',
@@ -883,11 +888,13 @@ export default function LiveMap({
               background: `linear-gradient(90deg, transparent, ${status.color}40, transparent)`,
             }}></div>
           </div>
+          </div> {/* End Main Card Wrapper */}
 
-          {/* Street View Panel (Slides down below the card) */}
+          {/* Street View Panel (Appears to the left of the main card) */}
           {showStreetView && (
             <div style={{
-              marginTop: '12px',
+              width: '360px',
+              flexShrink: 0,
               borderRadius: '20px',
               overflow: 'hidden',
               border: '1px solid rgba(124,58,237,0.3)',
