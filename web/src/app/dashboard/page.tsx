@@ -11,6 +11,18 @@ const LiveMap = dynamic(() => import('@/components/dashboard/LiveMap'), { ssr: f
 import { ChevronUp, ChevronDown } from 'lucide-react';
 
 // Global declaration removed due to conflict with types/lord-icon.d.ts
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'lord-icon': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+        src?: string;
+        trigger?: string;
+        colors?: string;
+        style?: React.CSSProperties;
+      };
+    }
+  }
+}
 
 export default function DashboardPage() {
   const [showCards, setShowCards] = useState(true);
