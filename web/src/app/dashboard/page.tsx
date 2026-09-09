@@ -446,18 +446,28 @@ export default function DashboardPage() {
                 </div>
 
                 <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '12px',
-                  background: `linear-gradient(135deg, ${kpi.accent}15, ${kpi.accent}08)`,
-                  border: `1px solid ${kpi.accent}20`,
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '14px',
+                  background: `linear-gradient(145deg, ${kpi.accent}30, ${kpi.accent}10)`,
+                  border: `1px solid ${kpi.accent}30`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '18px',
+                  fontSize: '24px',
                   flexShrink: 0,
+                  boxShadow: `0 4px 15px ${kpi.accent}25, 0 2px 6px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.6)`,
+                  animation: `kpi-icon-breathe 3s ease-in-out infinite`,
+                  animationDelay: `${idx * 0.4}s`,
+                  transformStyle: 'preserve-3d' as const,
+                  perspective: '200px',
                 }}>
-                  {kpi.icon}
+                  <span style={{
+                    display: 'inline-block',
+                    filter: `drop-shadow(0 3px 6px ${kpi.accent}50)`,
+                    animation: `kpi-icon-float 4s ease-in-out infinite`,
+                    animationDelay: `${idx * 0.5}s`,
+                  }}>{kpi.icon}</span>
                 </div>
               </div>
             ))}
@@ -469,6 +479,27 @@ export default function DashboardPage() {
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        @keyframes kpi-icon-breathe {
+          0%, 100% {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1), 0 2px 6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.6);
+            transform: scale(1);
+          }
+          50% {
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.8);
+            transform: scale(1.06);
+          }
+        }
+        @keyframes kpi-icon-float {
+          0%, 100% {
+            transform: translateY(0) rotate(0deg);
+          }
+          25% {
+            transform: translateY(-3px) rotate(3deg);
+          }
+          75% {
+            transform: translateY(2px) rotate(-2deg);
+          }
         }
       `}</style>
     </div>
