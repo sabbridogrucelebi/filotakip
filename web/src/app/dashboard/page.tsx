@@ -3,11 +3,21 @@ import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Activity, AlertTriangle, CheckCircle, Navigation, Search, Car, Radar, ShieldCheck } from 'lucide-react';
 import { io } from 'socket.io-client';
+import Script from 'next/script';
 
 // Dynamically import Leaflet Map to avoid SSR window is not defined error
 const LiveMap = dynamic(() => import('@/components/dashboard/LiveMap'), { ssr: false });
 
 import { ChevronUp, ChevronDown } from 'lucide-react';
+
+// Allow lord-icon as a custom element in TypeScript
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      'lord-icon': any;
+    }
+  }
+}
 
 export default function DashboardPage() {
   const [showCards, setShowCards] = useState(true);
@@ -190,16 +200,19 @@ export default function DashboardPage() {
   const movingVehicles = vehicles.filter(v => v.speed > 0).length;
   const speedingAlarms = vehicles.filter(v => v.speed > 100).length;
 
-  // KPI data for bottom cards (Using Premium Lucide Icons)
+  // KPI data for bottom cards (Using Premium Lordicon Animations)
   const kpiItems = [
-    { title: 'TOPLAM ARAÇ', value: totalVehicles, icon: <Car size={24} strokeWidth={2.5} />, accent: '#3b82f6' },
-    { title: 'HAREKET HALİNDE', value: movingVehicles, icon: <Radar size={24} strokeWidth={2.5} />, accent: '#10b981' },
-    { title: 'HIZ İHLALİ / ALARM', value: speedingAlarms, icon: <AlertTriangle size={24} strokeWidth={2.5} />, accent: '#ef4444' },
-    { title: 'SİSTEM SAĞLIĞI', value: serverStatus, icon: <ShieldCheck size={24} strokeWidth={2.5} />, accent: '#8b5cf6' },
+    { title: 'TOPLAM ARAÇ', value: totalVehicles, icon: <lord-icon src="https://cdn.lordicon.com/pithnlch.json" trigger="loop" delay="1000" style={{ width: '32px', height: '32px' }} colors="primary:#3b82f6"></lord-icon>, accent: '#3b82f6' },
+    { title: 'HAREKET HALİNDE', value: movingVehicles, icon: <lord-icon src="https://cdn.lordicon.com/zpxybbhl.json" trigger="loop" delay="1500" style={{ width: '32px', height: '32px' }} colors="primary:#10b981"></lord-icon>, accent: '#10b981' },
+    { title: 'HIZ İHLALİ / ALARM', value: speedingAlarms, icon: <lord-icon src="https://cdn.lordicon.com/tdrtiskw.json" trigger="loop" delay="500" style={{ width: '32px', height: '32px' }} colors="primary:#ef4444"></lord-icon>, accent: '#ef4444' },
+    { title: 'SİSTEM SAĞLIĞI', value: serverStatus, icon: <lord-icon src="https://cdn.lordicon.com/nocovwne.json" trigger="loop" delay="2000" style={{ width: '32px', height: '32px' }} colors="primary:#8b5cf6"></lord-icon>, accent: '#8b5cf6' },
   ];
 
   return (
     <div className="w-full h-full relative bg-[#02040a] overflow-hidden">
+      {/* Include Lordicon script */}
+      <Script src="https://cdn.lordicon.com/lordicon.js" strategy="lazyOnload" />
+
       {/* Background Map */}
       <div className="absolute inset-0 z-0">
         <LiveMap vehicles={vehicles} focusTarget={focusTarget} searchMarker={searchMarker} />
