@@ -13,6 +13,10 @@ const pool = mysql.createPool({
   multipleStatements: true
 });
 
+// GPS Drift Filter: Speeds below this threshold (km/h) are treated as 0 (stationary).
+// This prevents GPS signal noise from breaking idle calculations.
+const GPS_DRIFT_THRESHOLD = 5;
+
 // Test connection and migrate schema
 pool.getConnection()
   .then(async connection => {
@@ -61,7 +65,9 @@ async function saveLocation(imei, locationData, accOn) {
     // Update the last known position and status in devices table
     // ACC (ignition) status comes from Status packets (0x13), stored as acc_on in devices table.
     // We read the current acc_on value to decide idle logic.
-    const status = locationData.speed > 0 ? 'moving' : 'stopped';
+    // Apply GPS drift filter: treat very low speeds as 0 (GPS noise)
+    const effectiveSpeed = locationData.speed < GPS_DRIFT_THRESHOLD ? 0 : locationData.speed;
+    const status = effectiveSpeed > 0 ? 'moving' : 'stopped';
     
     // First, get current acc_on from the device
     const [deviceRows] = await pool.execute('SELECT acc_on FROM devices WHERE imei = ?', [imei]);
@@ -70,10 +76,10 @@ async function saveLocation(imei, locationData, accOn) {
     let updateQuery = `UPDATE devices SET last_update = NOW(), status = ?`;
     let queryParams = [status];
 
-    if (locationData.speed > 0 || !accOn) {
+    if (effectiveSpeed > 0 || !accOn) {
       // Moving or ignition off -> reset idle timer
       updateQuery += `, idle_since = NULL`;
-    } else if (locationData.speed === 0 && accOn) {
+    } else if (effectiveSpeed === 0 && accOn) {
       // Stopped but ignition on -> start/continue idle timer
       updateQuery += `, idle_since = COALESCE(idle_since, NOW())`;
     }
@@ -241,9 +247,12 @@ async function getDailyStats(imei) {
     for (let i = 0; i < rows.length; i++) {
       const current = rows[i];
       
-      // Speed stats
+      // Apply GPS drift filter
+      const effectiveSpeed = current.speed < GPS_DRIFT_THRESHOLD ? 0 : current.speed;
+
+      // Speed stats (use raw speed for max/avg, but filtered speed for movement detection)
       if (current.speed > maxSpeed) maxSpeed = current.speed;
-      if (current.speed > 0) {
+      if (effectiveSpeed > 0) {
         sumSpeed += current.speed;
         movingPointCount++;
       }
@@ -252,20 +261,22 @@ async function getDailyStats(imei) {
       if (i > 0) {
         const prev = rows[i - 1];
         
-        // Distance (only if moving)
-        if (current.speed > 0 || prev.speed > 0) {
+        const prevEffectiveSpeed = prev.speed < GPS_DRIFT_THRESHOLD ? 0 : prev.speed;
+
+        // Distance (only if genuinely moving, not GPS drift)
+        if (effectiveSpeed > 0 || prevEffectiveSpeed > 0) {
           const dist = calculateDistance(prev.latitude, prev.longitude, current.latitude, current.longitude);
           if (dist < 100) { // filter out wild GPS jumps (e.g., > 100km in a few seconds)
             totalDistance += dist;
           }
         }
 
-        // Idle time (speed = 0 AND ignition = 1 for both points)
-        if (current.speed === 0 && prev.speed === 0 && current.ignition === 1 && prev.ignition === 1) {
+        // Idle time (effective speed = 0 AND ignition = 1 for both points)
+        if (effectiveSpeed === 0 && prevEffectiveSpeed === 0 && current.ignition === 1 && prev.ignition === 1) {
           const timeDiffSeconds = (new Date(current.device_time) - new Date(prev.device_time)) / 1000;
           if (timeDiffSeconds > 0 && timeDiffSeconds < 3600) { // Max 1 hour gap allowed to avoid huge jumps
             currentIdleSessionSeconds += timeDiffSeconds;
-            if (currentIdleSessionSeconds <= 1800) { // Cap at 30 minutes
+            if (currentIdleSessionSeconds <= 1800) { // Cap at 30 minutes per session
               totalIdleSeconds += timeDiffSeconds;
             }
           }
